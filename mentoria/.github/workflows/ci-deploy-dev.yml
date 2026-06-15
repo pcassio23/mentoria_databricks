@@ -1,0 +1,27 @@
+name: CI + Deploy Dev
+
+on:
+  pull_request:
+    branches: [ "dev" ]
+  push:
+    branches: [ "dev" ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar bundle (Dev)
+        run: databricks bundle validate --bundle-file ./databricks_bundle/dev/databricks.yml
+
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy no Dev
+        run: databricks bundle deploy --bundle-file ./databricks_bundle/dev/databricks.yml --target dev
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}

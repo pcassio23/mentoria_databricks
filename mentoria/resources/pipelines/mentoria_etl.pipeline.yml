@@ -7,11 +7,11 @@ resources:
       catalog: ${var.catalog}
       schema: ${var.schema}
       serverless: true
-      root_path: "../src/mentoria_etl"
+      root_path: "../src/pipelines/mentoria_etl"
 
       libraries:
         - glob:
-            include: ../src/mentoria_etl/transformations/**
+            include: ../src/pipelines/mentoria_etl/transformations/**
 
       environment:
         dependencies:

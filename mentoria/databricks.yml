@@ -28,19 +28,21 @@ targets:
     mode: development
     default: true
     workspace:
-      host: ${var.databricks_host}
+      host: ${DATABRICKS_HOST}
+      root_path: /Workspace/Mentoria_Dev
     variables:
       catalog: dev_catalog
-      schema: ${workspace.current_user.short_name}
+      schema: bronze
   prod:
     mode: production
     workspace:
-      host: ${var.databricks_host}
+      host: ${DATABRICKS_HOST}
       # We explicitly deploy to /Workspace/Users/pcassio23@gmail.com to make sure we only have a single copy.
-      root_path: /Workspace/Mentoria/.bundle/${bundle.name}/${bundle.target}
+      # /.bundle/${bundle.name}/${bundle.target}
+      root_path: /Workspace/Mentoria_Prod
     variables:
       catalog: prod_catalog
-      schema: prod
+      schema: bronze
     permissions:
       - user_name: pcassio23@gmail.com
         level: CAN_MANAGE

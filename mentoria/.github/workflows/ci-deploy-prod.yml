@@ -1,0 +1,27 @@
+name: CI + Deploy Prod
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar bundle (Prod)
+        run: databricks bundle validate --bundle-file ./databricks_bundle/prod/databricks.yml
+
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy no Prod
+        run: databricks bundle deploy --bundle-file ./databricks_bundle/prod/databricks.yml --target prod
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
