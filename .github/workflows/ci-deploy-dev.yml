@@ -14,8 +14,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Instalar Databricks CLI nova
         run: |
-          curl -fsSL https://raw.githubusercontent.com/databricks/cli/main/install.sh | sh
-          echo "$HOME/.databricks/bin" >> $GITHUB_PATH
+          curl -L https://github.com/databricks/cli/releases/latest/download/databricks_linux_amd64 -o databricks
+          chmod +x databricks
+          sudo mv databricks /usr/local/bin/
       - name: Validar bundle (Dev)
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
@@ -29,8 +30,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Instalar Databricks CLI nova
         run: |
-          curl -fsSL https://raw.githubusercontent.com/databricks/cli/main/install.sh | sh
-          echo "$HOME/.databricks/bin" >> $GITHUB_PATH
+          curl -L https://github.com/databricks/cli/releases/latest/download/databricks_linux_amd64 -o databricks
+          chmod +x databricks
+          sudo mv databricks /usr/local/bin/
       - name: Deploy no Dev
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
