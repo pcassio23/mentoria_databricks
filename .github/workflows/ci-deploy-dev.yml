@@ -21,7 +21,9 @@ jobs:
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-        run: databricks bundle validate --bundle-file ./mentoria/databricks.yml
+        run: |
+          cd mentoria
+          databricks bundle validate
 
   deploy:
     runs-on: ubuntu-latest
@@ -37,4 +39,6 @@ jobs:
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-        run: databricks bundle deploy --bundle-file ./mentoria/databricks.yml --target dev
+        run: |
+          cd mentoria
+          databricks bundle deploy --target dev
