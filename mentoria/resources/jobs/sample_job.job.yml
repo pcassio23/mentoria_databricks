@@ -24,7 +24,7 @@ resources:
       tasks:
         - task_key: notebook_task
           notebook_task:
-            notebook_path: ../src/notebooks/sample_notebook.ipynb
+            notebook_path: ../../src/notebooks/sample_notebook.ipynb
         - task_key: python_wheel_task
           depends_on:
             - task_key: notebook_task
