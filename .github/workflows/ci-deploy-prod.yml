@@ -14,8 +14,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Instalar Databricks CLI
         run: |
-          pip install databricks-cli
-          pip install databricks-bundles
+          pip install databricks-cli==0.200.0
       - name: Validar bundle (Prod)
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
@@ -29,8 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Instalar Databricks CLI
         run: |
-          pip install databricks-cli
-          pip install databricks-bundles
+          pip install databricks-clipip install databricks-cli==0.200.0
       - name: Deploy no Prod
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
