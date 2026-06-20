@@ -1,0 +1,38 @@
+name: CI + Deploy Prod
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar Databricks CLI
+        run: |
+          pip install databricks-cli
+          pip install databricks-bundles
+      - name: Validar bundle (Prod)
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle validate --bundle-file ./databricks_bundle/prod/databricks.yml
+
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar Databricks CLI
+        run: |
+          pip install databricks-cli
+          pip install databricks-bundles
+      - name: Deploy no Prod
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: databricks bundle deploy --bundle-file ./databricks_bundle/prod/databricks.yml --target prod
