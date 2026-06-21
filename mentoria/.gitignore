@@ -10,3 +10,7 @@ scratch/**
 **/!explorations/README.md
 .vscode
 fixtures/
+
+# Databricks bundle generated dirs
+artifacts/
+state/
