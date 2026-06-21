@@ -8,3 +8,5 @@ scratch/**
 !scratch/README.md
 **/explorations/**
 **/!explorations/README.md
+.vscode
+fixtures/
