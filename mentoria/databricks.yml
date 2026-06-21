@@ -21,7 +21,7 @@ targets:
     mode: development
     default: true
     workspace:
-      host: https://dbc-9f652c02-a731.cloud.databricks.com
+      host: ${{ secrets.DATABRICKS_HOST}}
       root_path: /Workspace/Users/pcassio23@gmail.com/Mentoria_Dev
     variables:
       catalog: dev_catalog
@@ -30,7 +30,7 @@ targets:
   prod:
     mode: production
     workspace:
-      host: https://dbc-9f652c02-a731.cloud.databricks.com
+      host: ${{ secrets.DATABRICKS_HOST}}
       root_path: /Workspace/Mentoria_Prod
     variables:
       catalog: prod_catalog
