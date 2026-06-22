@@ -55,7 +55,7 @@ Notas:
     - Data Quality Expectations garantem qualidade mínima dos dados
     - Mantém colunas de metadados (ingestion_timestamp, processing_timestamp)
     - Nomes em português facilitam uso por analistas de negócio
-    - Comentários aplicados no Unity Catalog para governança de dados
+    - Schema inference automático para melhor manutenibilidade
     
 ============================================================================
 """
@@ -63,7 +63,7 @@ Notas:
 import dlt
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
-from pyspark.sql.types import StructType, StructField, IntegerType, StringType, DecimalType, TimestampType
+
 
 # Silver layer: Cleaned and validated film data with PT-BR column names
 
@@ -74,48 +74,7 @@ from pyspark.sql.types import StructType, StructField, IntegerType, StringType, 
     table_properties={
         "quality": "silver",
         "pipelines.autoOptimize.zOrderCols": "id_filme"
-    },
-    schema=StructType([
-        # Identificadores
-        StructField("id_filme", IntegerType(), False, 
-                   metadata={"comment": "Chave primária - Identificador único do filme"}),
-        StructField("id_idioma", IntegerType(), True, 
-                   metadata={"comment": "Chave estrangeira para tabela de idiomas"}),
-        
-        # Informações descritivas
-        StructField("titulo", StringType(), False, 
-                   metadata={"comment": "Nome/título do filme"}),
-        StructField("descricao", StringType(), True, 
-                   metadata={"comment": "Sinopse ou descrição do enredo"}),
-        StructField("ano_lancamento", IntegerType(), True, 
-                   metadata={"comment": "Ano em que o filme foi lançado"}),
-        StructField("classificacao", StringType(), True, 
-                   metadata={"comment": "Classificação etária (G, PG, PG-13, R, NC-17)"}),
-        
-        # Características técnicas
-        StructField("duracao_minutos", IntegerType(), False, 
-                   metadata={"comment": "Duração total do filme em minutos"}),
-        StructField("recursos_especiais", StringType(), True, 
-                   metadata={"comment": "Features especiais do DVD (legendas, making of, cenas deletadas, etc)"}),
-        StructField("texto_completo", StringType(), True, 
-                   metadata={"comment": "Índice de busca textual full-text para pesquisa de conteúdo"}),
-        
-        # Informações comerciais
-        StructField("duracao_aluguel_dias", IntegerType(), False, 
-                   metadata={"comment": "Período padrão de locação em dias"}),
-        StructField("valor_aluguel", DecimalType(4, 2), False, 
-                   metadata={"comment": "Preço cobrado por aluguel"}),
-        StructField("custo_reposicao", DecimalType(5, 2), False, 
-                   metadata={"comment": "Custo para substituir o filme em estoque"}),
-        
-        # Metadados e auditoria
-        StructField("ultima_atualizacao", TimestampType(), True, 
-                   metadata={"comment": "Timestamp da última modificação no sistema origem"}),
-        StructField("data_ingestao", TimestampType(), True, 
-                   metadata={"comment": "Timestamp de quando foi carregado na camada Bronze"}),
-        StructField("data_processamento", TimestampType(), False, 
-                   metadata={"comment": "Timestamp do processamento na camada Silver"})
-    ])
+    }
 )
 @dlt.expect_or_drop("valida_titulo", "titulo IS NOT NULL AND length(trim(titulo)) > 0")
 @dlt.expect_or_drop("valida_valor_aluguel", "valor_aluguel > 0")
@@ -133,11 +92,11 @@ def dvdrental_filmes():
     - Aplica trim em campos de texto
     - Valida e padroniza valores
     - Traduz nomes de colunas para português brasileiro
+    - Converte tipos PostgreSQL para tipos Spark apropriados
     - Adiciona timestamp de processamento
-    - Aplica comentários das colunas no Unity Catalog
     
     Returns:
-        DataFrame: Dados limpos e validados com colunas em PT-BR e metadados no UC
+        DataFrame: Dados limpos e validados com colunas em PT-BR
     """
     
     # Read from Bronze layer (uses default schema from pipeline config)
@@ -153,9 +112,20 @@ def dvdrental_filmes():
             F.upper(F.trim(F.col("rating")))
         ).otherwise(None),
         
+        # Convert PostgreSQL smallint (short) to integer
+        "language_id": F.col("language_id").cast("integer"),
+        "length": F.col("length").cast("integer"),
+        "rental_duration": F.col("rental_duration").cast("integer"),
+        
         # Ensure numeric fields are properly typed
         "rental_rate": F.col("rental_rate").cast("decimal(4,2)"),
         "replacement_cost": F.col("replacement_cost").cast("decimal(5,2)"),
+        
+        # Convert PostgreSQL array to string (comma-separated)
+        "special_features": F.when(
+            F.col("special_features").isNotNull(), 
+            F.array_join(F.col("special_features"), ", ")
+        ).otherwise(None),
         
         # Add processing timestamp
         "processing_timestamp": F.current_timestamp()
@@ -174,7 +144,7 @@ def dvdrental_filmes():
     # Translate column names to PT-BR and select in the order defined in schema
     df_translated = df_deduplicated.select(
         # Identificadores
-        F.col("film_id").alias("id_filme"),
+        F.col("film_id").cast("integer").alias("id_filme"),
         F.col("language_id").alias("id_idioma"),
         
         # Informações descritivas
@@ -242,7 +212,5 @@ VALIDAÇÕES APLICADAS:
 ⚠ classificacao deve estar na lista válida ou ser NULL (warning, não descarta)
 ⚠ ano_lancamento deve estar entre 1900 e ano atual (warning, não descarta)
 
-COMENTÁRIOS NO UNITY CATALOG:
-Todos os comentários das colunas são registrados como metadados no Unity Catalog,
-permitindo documentação inline acessível via DESCRIBE TABLE EXTENDED e interfaces UI.
+
 """
