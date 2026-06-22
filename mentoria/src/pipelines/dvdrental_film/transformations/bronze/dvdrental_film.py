@@ -1,5 +1,6 @@
 from pyspark import pipelines as dp
 from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
 
 # Bronze layer: Raw ingestion from PostgreSQL dvdrental database
 # Reads the film table with minimal transformations
@@ -16,6 +17,7 @@ def dvdrental_film():
     Ingest film table from PostgreSQL database.
     
     Uses the default schema from pipeline config (bronze).
+    Adds ingestion_timestamp for data lineage tracking.
     
     Connection details should be configured via:
     - Databricks secrets for credentials
@@ -46,4 +48,7 @@ def dvdrental_film():
         .load()
     )
     
-    return df
+    # Add ingestion timestamp for data lineage
+    df_with_metadata = df.withColumn("ingestion_timestamp", F.current_timestamp())
+    
+    return df_with_metadata
