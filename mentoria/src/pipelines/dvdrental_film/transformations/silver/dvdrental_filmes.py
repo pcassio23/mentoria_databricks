@@ -140,8 +140,8 @@ def dvdrental_filmes():
         DataFrame: Dados limpos e validados com colunas em PT-BR e metadados no UC
     """
     
-    # Read from Bronze layer
-    df_bronze = dlt.read("bronze.dvdrental_film")
+    # Read from Bronze layer (uses default schema from pipeline config)
+    df_bronze = dlt.read("dvdrental_film")
     
     # Apply data cleaning transformations using withColumns for better performance
     df_clean = df_bronze.withColumns({

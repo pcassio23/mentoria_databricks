@@ -5,7 +5,6 @@ from pyspark.sql import SparkSession
 # Reads the film table with minimal transformations
 
 @dp.table(
-    name="bronze.dvdrental_film",  # Specifies schema for bronze layer
     comment="Bronze layer - Raw film data from PostgreSQL dvdrental database",
     table_properties={
         "quality": "bronze",
@@ -15,6 +14,8 @@ from pyspark.sql import SparkSession
 def dvdrental_film():
     """
     Ingest film table from PostgreSQL database.
+    
+    Uses the default schema from pipeline config (bronze).
     
     Connection details should be configured via:
     - Databricks secrets for credentials

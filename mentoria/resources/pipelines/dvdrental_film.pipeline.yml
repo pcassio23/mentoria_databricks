@@ -7,7 +7,7 @@ resources:
     pip_dvdrental_film:
       name: pip_dvdrental_film
       catalog: ${var.catalog}
-      # Schema removed - each layer will specify its own schema (bronze/silver/gold)
+      schema: ${var.bronze_schema}  # Schema padrão para tabelas bronze
       serverless: true
       root_path: "../../src/pipelines/dvdrental_film"
 
