@@ -1,11 +1,11 @@
-from pyspark import pipelines as dp
+import dlt
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 # Bronze layer: Raw ingestion from PostgreSQL dvdrental database
 # Reads the film table with minimal transformations
 
-@dp.table(
+@dlt.table(
     comment="Bronze layer - Raw film data from PostgreSQL dvdrental database",
     table_properties={
         "quality": "bronze",
