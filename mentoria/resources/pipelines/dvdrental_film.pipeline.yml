@@ -1,0 +1,21 @@
+# Pipeline configuration for DVD Rental Film data ingestion and transformation
+# This pipeline ingests data from PostgreSQL dvdrental database
+# and processes it through bronze, silver, and gold layers
+
+resources:
+  pipelines:
+    pip_dvdrental_film:
+      name: pip_dvdrental_film
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+      serverless: true
+      root_path: "../../src/pipelines/dvdrental_film"
+
+      libraries:
+        - glob:
+            include: ../../src/pipelines/dvdrental_film/transformations/**
+
+      environment:
+        dependencies:
+          # Include dependencies from pyproject.toml
+          - --editable ${workspace.file_path}
