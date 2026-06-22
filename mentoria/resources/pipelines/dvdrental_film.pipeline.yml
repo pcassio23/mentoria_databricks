@@ -7,7 +7,7 @@ resources:
     pip_dvdrental_film:
       name: pip_dvdrental_film
       catalog: ${var.catalog}
-      schema: ${var.schema}
+      # Schema removed - each layer will specify its own schema (bronze/silver/gold)
       serverless: true
       root_path: "../../src/pipelines/dvdrental_film"
 

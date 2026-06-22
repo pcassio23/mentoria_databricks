@@ -14,7 +14,11 @@ variables:
   catalog:
     description: The catalog to use
   schema:
-    description: The schema to use
+    description: The schema to use (for sample resources)
+  bronze_schema:
+    description: The schema to use for bronze layer
+  silver_schema:
+    description: The schema to use for silver layer
   env:
     description: The environment name (dev, prod, staging, etc.)
 
@@ -28,6 +32,8 @@ targets:
     variables:
       catalog: dev_catalog
       schema: bronze
+      bronze_schema: bronze
+      silver_schema: silver
       env: dev
 
   prod:
@@ -38,6 +44,8 @@ targets:
     variables:
       catalog: prod_catalog
       schema: bronze
+      bronze_schema: bronze
+      silver_schema: silver
       env: prod
     permissions:
       - level: CAN_MANAGE

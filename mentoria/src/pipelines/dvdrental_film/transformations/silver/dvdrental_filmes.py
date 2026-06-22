@@ -55,6 +55,7 @@ Notas:
     - Data Quality Expectations garantem qualidade mínima dos dados
     - Mantém colunas de metadados (ingestion_timestamp, processing_timestamp)
     - Nomes em português facilitam uso por analistas de negócio
+    - Comentários aplicados no Unity Catalog para governança de dados
     
 ============================================================================
 """
@@ -62,16 +63,59 @@ Notas:
 import dlt
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType, DecimalType, TimestampType
 
 # Silver layer: Cleaned and validated film data with PT-BR column names
 
 
 @dlt.table(
+    name="silver.dvdrental_filmes",
     comment="Silver layer - Dados limpos de filmes com colunas em PT-BR e validações de qualidade",
     table_properties={
         "quality": "silver",
         "pipelines.autoOptimize.zOrderCols": "id_filme"
-    }
+    },
+    schema=StructType([
+        # Identificadores
+        StructField("id_filme", IntegerType(), False, 
+                   metadata={"comment": "Chave primária - Identificador único do filme"}),
+        StructField("id_idioma", IntegerType(), True, 
+                   metadata={"comment": "Chave estrangeira para tabela de idiomas"}),
+        
+        # Informações descritivas
+        StructField("titulo", StringType(), False, 
+                   metadata={"comment": "Nome/título do filme"}),
+        StructField("descricao", StringType(), True, 
+                   metadata={"comment": "Sinopse ou descrição do enredo"}),
+        StructField("ano_lancamento", IntegerType(), True, 
+                   metadata={"comment": "Ano em que o filme foi lançado"}),
+        StructField("classificacao", StringType(), True, 
+                   metadata={"comment": "Classificação etária (G, PG, PG-13, R, NC-17)"}),
+        
+        # Características técnicas
+        StructField("duracao_minutos", IntegerType(), False, 
+                   metadata={"comment": "Duração total do filme em minutos"}),
+        StructField("recursos_especiais", StringType(), True, 
+                   metadata={"comment": "Features especiais do DVD (legendas, making of, cenas deletadas, etc)"}),
+        StructField("texto_completo", StringType(), True, 
+                   metadata={"comment": "Índice de busca textual full-text para pesquisa de conteúdo"}),
+        
+        # Informações comerciais
+        StructField("duracao_aluguel_dias", IntegerType(), False, 
+                   metadata={"comment": "Período padrão de locação em dias"}),
+        StructField("valor_aluguel", DecimalType(4, 2), False, 
+                   metadata={"comment": "Preço cobrado por aluguel"}),
+        StructField("custo_reposicao", DecimalType(5, 2), False, 
+                   metadata={"comment": "Custo para substituir o filme em estoque"}),
+        
+        # Metadados e auditoria
+        StructField("ultima_atualizacao", TimestampType(), True, 
+                   metadata={"comment": "Timestamp da última modificação no sistema origem"}),
+        StructField("data_ingestao", TimestampType(), True, 
+                   metadata={"comment": "Timestamp de quando foi carregado na camada Bronze"}),
+        StructField("data_processamento", TimestampType(), False, 
+                   metadata={"comment": "Timestamp do processamento na camada Silver"})
+    ])
 )
 @dlt.expect_or_drop("valida_titulo", "titulo IS NOT NULL AND length(trim(titulo)) > 0")
 @dlt.expect_or_drop("valida_valor_aluguel", "valor_aluguel > 0")
@@ -90,35 +134,32 @@ def dvdrental_filmes():
     - Valida e padroniza valores
     - Traduz nomes de colunas para português brasileiro
     - Adiciona timestamp de processamento
+    - Aplica comentários das colunas no Unity Catalog
     
     Returns:
-        DataFrame: Dados limpos e validados com colunas em PT-BR
+        DataFrame: Dados limpos e validados com colunas em PT-BR e metadados no UC
     """
     
     # Read from Bronze layer
-    df_bronze = dlt.read("dvdrental_film")
+    df_bronze = dlt.read("bronze.dvdrental_film")
     
-    # Apply data cleaning transformations
-    df_clean = (
-        df_bronze
+    # Apply data cleaning transformations using withColumns for better performance
+    df_clean = df_bronze.withColumns({
         # Trim string columns
-        .withColumn("title", F.trim(F.col("title")))
-        .withColumn("description", F.trim(F.col("description")))
-        .withColumn("rating", F.trim(F.col("rating")))
-        
-        # Standardize rating to uppercase (if not null)
-        .withColumn("rating", 
-                    F.when(F.col("rating").isNotNull(), 
-                           F.upper(F.col("rating")))
-                    .otherwise(None))
+        "title": F.trim(F.col("title")),
+        "description": F.trim(F.col("description")),
+        "rating": F.when(
+            F.trim(F.col("rating")).isNotNull(), 
+            F.upper(F.trim(F.col("rating")))
+        ).otherwise(None),
         
         # Ensure numeric fields are properly typed
-        .withColumn("rental_rate", F.col("rental_rate").cast("decimal(4,2)"))
-        .withColumn("replacement_cost", F.col("replacement_cost").cast("decimal(5,2)"))
+        "rental_rate": F.col("rental_rate").cast("decimal(4,2)"),
+        "replacement_cost": F.col("replacement_cost").cast("decimal(5,2)"),
         
         # Add processing timestamp
-        .withColumn("processing_timestamp", F.current_timestamp())
-    )
+        "processing_timestamp": F.current_timestamp()
+    })
     
     # Deduplication: Keep most recent record per film_id based on last_update
     window_spec = Window.partitionBy("film_id").orderBy(F.col("last_update").desc())
@@ -130,33 +171,32 @@ def dvdrental_filmes():
         .drop("row_num")
     )
     
-    # Translate column names to PT-BR with descriptions
-    df_translated = (
-        df_deduplicated
+    # Translate column names to PT-BR and select in the order defined in schema
+    df_translated = df_deduplicated.select(
         # Identificadores
-        .withColumnRenamed("film_id", "id_filme")                           # Identificador único do filme (PK)
-        .withColumnRenamed("language_id", "id_idioma")                      # Referência ao idioma do filme
+        F.col("film_id").alias("id_filme"),
+        F.col("language_id").alias("id_idioma"),
         
         # Informações descritivas
-        .withColumnRenamed("title", "titulo")                               # Nome/título do filme
-        .withColumnRenamed("description", "descricao")                      # Sinopse ou descrição do enredo
-        .withColumnRenamed("release_year", "ano_lancamento")                # Ano em que o filme foi lançado
-        .withColumnRenamed("rating", "classificacao")                       # Classificação etária (G, PG, PG-13, R, NC-17)
+        F.col("title").alias("titulo"),
+        F.col("description").alias("descricao"),
+        F.col("release_year").alias("ano_lancamento"),
+        F.col("rating").alias("classificacao"),
         
         # Características técnicas
-        .withColumnRenamed("length", "duracao_minutos")                     # Duração total do filme em minutos
-        .withColumnRenamed("special_features", "recursos_especiais")        # Features do DVD (legendas, extras, etc)
-        .withColumnRenamed("fulltext", "texto_completo")                    # Índice full-text para busca
+        F.col("length").alias("duracao_minutos"),
+        F.col("special_features").alias("recursos_especiais"),
+        F.col("fulltext").alias("texto_completo"),
         
         # Informações comerciais
-        .withColumnRenamed("rental_duration", "duracao_aluguel_dias")      # Período padrão de aluguel em dias
-        .withColumnRenamed("rental_rate", "valor_aluguel")                 # Preço cobrado por aluguel
-        .withColumnRenamed("replacement_cost", "custo_reposicao")          # Custo para substituir o filme em estoque
+        F.col("rental_duration").alias("duracao_aluguel_dias"),
+        F.col("rental_rate").alias("valor_aluguel"),
+        F.col("replacement_cost").alias("custo_reposicao"),
         
         # Metadados e auditoria
-        .withColumnRenamed("last_update", "ultima_atualizacao")            # Timestamp da última modificação no registro
-        .withColumnRenamed("ingestion_timestamp", "data_ingestao")         # Timestamp de quando foi carregado na Bronze
-        .withColumnRenamed("processing_timestamp", "data_processamento")    # Timestamp do processamento na Silver
+        F.col("last_update").alias("ultima_atualizacao"),
+        F.col("ingestion_timestamp").alias("data_ingestao"),
+        F.col("processing_timestamp").alias("data_processamento")
     )
     
     return df_translated
@@ -180,8 +220,8 @@ INFORMAÇÕES DESCRITIVAS:
 
 CARACTERÍSTICAS TÉCNICAS:
 - duracao_minutos (INT)         : Duração do filme em minutos (obrigatório, > 0)
-- recursos_especiais (ARRAY)    : Features especiais do DVD (ex: legendas, trailers)
-- texto_completo (TSVECTOR)     : Índice de busca textual full-text
+- recursos_especiais (STRING)   : Features especiais do DVD (ex: legendas, trailers)
+- texto_completo (STRING)       : Índice de busca textual full-text
 
 INFORMAÇÕES COMERCIAIS:
 - duracao_aluguel_dias (INT)    : Período padrão de locação em dias (obrigatório, > 0)
@@ -201,25 +241,8 @@ VALIDAÇÕES APLICADAS:
 ✓ custo_reposicao deve ser maior ou igual a zero
 ⚠ classificacao deve estar na lista válida ou ser NULL (warning, não descarta)
 ⚠ ano_lancamento deve estar entre 1900 e ano atual (warning, não descarta)
-"""
 
-
-# ============================================================================
-# Alternative approach using dlt.apply_changes() for SCD Type 1
-# ============================================================================
-# Uncomment this section if you prefer to use apply_changes instead of manual deduplication
-
-"""
-dlt.create_streaming_table("dvdrental_filmes_scd")
-
-dlt.apply_changes(
-    target="dvdrental_filmes_scd",
-    source="dvdrental_film",
-    keys=["film_id"],
-    sequence_by="last_update",
-    stored_as_scd_type=1,  # SCD Type 1: Keep only latest version
-    except_column_list=["ingestion_timestamp"],  # Exclude metadata columns from merge
-    # Apply column renaming in the target table
-    stored_as_scd_type=1
-)
+COMENTÁRIOS NO UNITY CATALOG:
+Todos os comentários das colunas são registrados como metadados no Unity Catalog,
+permitindo documentação inline acessível via DESCRIBE TABLE EXTENDED e interfaces UI.
 """
