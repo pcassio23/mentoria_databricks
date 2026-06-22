@@ -5,6 +5,7 @@ from pyspark.sql import SparkSession
 # Reads the film table with minimal transformations
 
 @dp.table(
+    name="bronze.dvdrental_film",  # Specifies schema for bronze layer
     comment="Bronze layer - Raw film data from PostgreSQL dvdrental database",
     table_properties={
         "quality": "bronze",
