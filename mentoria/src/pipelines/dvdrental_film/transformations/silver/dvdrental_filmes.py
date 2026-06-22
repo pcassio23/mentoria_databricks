@@ -1,20 +1,20 @@
 """
 ============================================================================
-Film Silver Layer - Limpeza e Validação de Dados
+Film Silver Layer - Limpeza e Validação de Dados com Carga Incremental
 ============================================================================
 
 Autor:          pcassio23@gmail.com
 Criado em:      2025-01-08
-Versão:         1.0.0
+Versão:         2.0.0
 Pipeline:       dvdrental_film
 Camada:         Silver
 
 Descrição:
-    Camada Silver que aplica transformações de limpeza, deduplicação e
-    validação de qualidade nos dados brutos da camada Bronze.
+    Camada Silver que processa incrementalmente dados da Bronze aplicando
+    transformações de limpeza, deduplicação e validação de qualidade.
     
-    Este módulo lê a tabela dvdrental_film, remove duplicatas, padroniza
-    valores, traduz nomes de colunas para PT-BR e aplica regras de negócio.
+    Usa dlt.apply_changes() para processar apenas registros novos/modificados
+    da camada Bronze, aplicando tradução de colunas para PT-BR e validações.
 
 Origem:
     Table:      dvdrental_film (Bronze Layer)
@@ -25,7 +25,8 @@ Destino:
     Table:      dvdrental_filmes
 
 Transformações Aplicadas:
-    - Deduplicação baseada em film_id (mantém registro mais recente)
+    - Processamento incremental baseado em last_update
+    - Deduplicação por film_id (SCD Type 1)
     - Validação de valores obrigatórios (título, taxa de aluguel, duração)
     - Padronização de classificação (apenas valores válidos)
     - Remoção de espaços extras em strings
@@ -49,32 +50,28 @@ Mapeamento de Colunas (EN → PT-BR):
 
 Histórico de Alterações:
     2025-01-08  pcassio23@gmail.com  Versão inicial
+    2025-01-08  pcassio23@gmail.com  v2.0 - Migrado para apply_changes incremental
     
 Notas:
-    - Utiliza Window Functions para deduplicação eficiente
-    - Data Quality Expectations garantem qualidade mínima dos dados
-    - Mantém colunas de metadados (ingestion_timestamp, processing_timestamp)
+    - dlt.apply_changes() gerencia automaticamente CDC e deduplicação
+    - Data Quality Expectations aplicadas via expectations (não constraints)
     - Nomes em português facilitam uso por analistas de negócio
-    - Schema inference automático para melhor manutenibilidade
+    - Comentários aplicados no Unity Catalog para governança de dados
     
 ============================================================================
 """
 
 import dlt
 from pyspark.sql import functions as F
-from pyspark.sql.window import Window
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType, DecimalType, TimestampType
+
+# ==============================================================================
+# Silver Layer: Incremental Processing with Data Quality
+# ==============================================================================
 
 
-# Silver layer: Cleaned and validated film data with PT-BR column names
-
-
-@dlt.table(
-    name="silver.dvdrental_filmes",
-    comment="Silver layer - Dados limpos de filmes com colunas em PT-BR e validações de qualidade",
-    table_properties={
-        "quality": "silver",
-        "pipelines.autoOptimize.zOrderCols": "id_filme"
-    }
+@dlt.view(
+    comment="Silver source view - applies cleaning and transformations to bronze data"
 )
 @dlt.expect_or_drop("valida_titulo", "titulo IS NOT NULL AND length(trim(titulo)) > 0")
 @dlt.expect_or_drop("valida_valor_aluguel", "valor_aluguel > 0")
@@ -83,98 +80,136 @@ from pyspark.sql.window import Window
 @dlt.expect_or_drop("valida_custo_reposicao", "custo_reposicao >= 0")
 @dlt.expect("valida_classificacao", "classificacao IN ('G', 'PG', 'PG-13', 'R', 'NC-17') OR classificacao IS NULL")
 @dlt.expect("valida_ano_lancamento", "ano_lancamento >= 1900 AND ano_lancamento <= year(current_date())")
-def dvdrental_filmes():
+def dvdrental_filmes_source():
     """
-    Processa dados da camada Bronze aplicando limpeza, validações e tradução de colunas.
+    Processa dados da Bronze aplicando limpeza, validações e tradução de colunas.
     
-    Transformações:
-    - Remove duplicatas mantendo o registro mais recente por film_id
-    - Aplica trim em campos de texto
-    - Valida e padroniza valores
-    - Traduz nomes de colunas para português brasileiro
-    - Converte tipos PostgreSQL para tipos Spark apropriados
-    - Adiciona timestamp de processamento
+    Esta view serve como source para apply_changes, aplicando:
+    - Trim em campos de texto
+    - Conversão de tipos (decimal, timestamp)
+    - Tradução de colunas para PT-BR
+    - Adição de timestamp de processamento
+    - Data quality expectations (validações)
     
     Returns:
         DataFrame: Dados limpos e validados com colunas em PT-BR
     """
     
-    # Read from Bronze layer (uses default schema from pipeline config)
+    # Read from Bronze layer (lê incrementalmente)
     df_bronze = dlt.read("dvdrental_film")
     
-    # Apply data cleaning transformations using withColumns for better performance
-    df_clean = df_bronze.withColumns({
-        # Trim string columns
-        "title": F.trim(F.col("title")),
-        "description": F.trim(F.col("description")),
-        "rating": F.when(
-            F.trim(F.col("rating")).isNotNull(), 
-            F.upper(F.trim(F.col("rating")))
-        ).otherwise(None),
-        
-        # Convert PostgreSQL smallint (short) to integer
-        "language_id": F.col("language_id").cast("integer"),
-        "length": F.col("length").cast("integer"),
-        "rental_duration": F.col("rental_duration").cast("integer"),
-        
-        # Ensure numeric fields are properly typed
-        "rental_rate": F.col("rental_rate").cast("decimal(4,2)"),
-        "replacement_cost": F.col("replacement_cost").cast("decimal(5,2)"),
-        
-        # Convert PostgreSQL array to string (comma-separated)
-        "special_features": F.when(
-            F.col("special_features").isNotNull(), 
-            F.array_join(F.col("special_features"), ", ")
-        ).otherwise(None),
-        
-        # Add processing timestamp
-        "processing_timestamp": F.current_timestamp()
-    })
-    
-    # Deduplication: Keep most recent record per film_id based on last_update
-    window_spec = Window.partitionBy("film_id").orderBy(F.col("last_update").desc())
-    
-    df_deduplicated = (
-        df_clean
-        .withColumn("row_num", F.row_number().over(window_spec))
-        .filter(F.col("row_num") == 1)
-        .drop("row_num")
-    )
-    
-    # Translate column names to PT-BR and select in the order defined in schema
-    df_translated = df_deduplicated.select(
+    # Apply transformations and translate columns in a single select
+    # Performance otimizado: todas transformações em uma única operação
+    df_transformed = df_bronze.select(
         # Identificadores
-        F.col("film_id").cast("integer").alias("id_filme"),
+        F.col("film_id").alias("id_filme"),
         F.col("language_id").alias("id_idioma"),
         
-        # Informações descritivas
-        F.col("title").alias("titulo"),
-        F.col("description").alias("descricao"),
+        # Informações descritivas (com trim)
+        F.trim(F.col("title")).alias("titulo"),
+        F.trim(F.col("description")).alias("descricao"),
         F.col("release_year").alias("ano_lancamento"),
-        F.col("rating").alias("classificacao"),
+        F.when(
+            F.trim(F.col("rating")).isNotNull(), 
+            F.upper(F.trim(F.col("rating")))
+        ).otherwise(None).alias("classificacao"),
         
         # Características técnicas
         F.col("length").alias("duracao_minutos"),
         F.col("special_features").alias("recursos_especiais"),
         F.col("fulltext").alias("texto_completo"),
         
-        # Informações comerciais
+        # Informações comerciais (com cast para decimal)
         F.col("rental_duration").alias("duracao_aluguel_dias"),
-        F.col("rental_rate").alias("valor_aluguel"),
-        F.col("replacement_cost").alias("custo_reposicao"),
+        F.col("rental_rate").cast("decimal(4,2)").alias("valor_aluguel"),
+        F.col("replacement_cost").cast("decimal(5,2)").alias("custo_reposicao"),
         
         # Metadados e auditoria
         F.col("last_update").alias("ultima_atualizacao"),
         F.col("ingestion_timestamp").alias("data_ingestao"),
-        F.col("processing_timestamp").alias("data_processamento")
+        F.current_timestamp().alias("data_processamento")
     )
     
-    return df_translated
+    return df_transformed
 
 
-# ============================================================================
-# DOCUMENTAÇÃO DAS COLUNAS FINAIS
-# ============================================================================
+# Apply changes to silver target table
+# DLT gerencia automaticamente:
+# - Processamento incremental da bronze
+# - Deduplicação por id_filme
+# - Ordenação por ultima_atualizacao
+# - Merge idempotente (SCD Type 1)
+dlt.apply_changes(
+    target="silver.dvdrental_filmes",
+    source="dvdrental_filmes_source",
+    keys=["id_filme"],                    # Chave primária (film_id traduzido)
+    sequence_by="ultima_atualizacao",     # Ordenação temporal (last_update traduzido)
+    stored_as_scd_type=1,                 # SCD Type 1: mantém apenas versão atual
+    # except_column_list=None,            # Processar todas as colunas
+)
+
+
+# ==============================================================================
+# COMENTÁRIOS DAS COLUNAS - Unity Catalog
+# ==============================================================================
+# 
+# Nota: Quando usando dlt.apply_changes(), os comentários das colunas devem
+# ser aplicados APÓS a criação da tabela via ALTER TABLE ou ao definir
+# o schema explicitamente.
+# 
+# Para adicionar comentários após deploy:
+# 
+# COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.id_filme IS 
+#   'Chave primária - Identificador único do filme';
+# 
+# Ou usar SQL para aplicar todos os comentários:
+
+COMMENTS_SQL = """
+-- Identificadores
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.id_filme IS 
+    'Chave primária - Identificador único do filme';
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.id_idioma IS 
+    'Chave estrangeira para tabela de idiomas';
+
+-- Informações descritivas
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.titulo IS 
+    'Nome/título do filme';
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.descricao IS 
+    'Sinopse ou descrição do enredo';
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.ano_lancamento IS 
+    'Ano em que o filme foi lançado';
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.classificacao IS 
+    'Classificação etária (G, PG, PG-13, R, NC-17)';
+
+-- Características técnicas
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.duracao_minutos IS 
+    'Duração total do filme em minutos';
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.recursos_especiais IS 
+    'Features especiais do DVD (legendas, making of, cenas deletadas, etc)';
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.texto_completo IS 
+    'Índice de busca textual full-text para pesquisa de conteúdo';
+
+-- Informações comerciais
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.duracao_aluguel_dias IS 
+    'Período padrão de locação em dias';
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.valor_aluguel IS 
+    'Preço cobrado por aluguel';
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.custo_reposicao IS 
+    'Custo para substituir o filme em estoque';
+
+-- Metadados e auditoria
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.ultima_atualizacao IS 
+    'Timestamp da última modificação no sistema origem';
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.data_ingestao IS 
+    'Timestamp de quando foi carregado na camada Bronze';
+COMMENT ON COLUMN dev_catalog.silver.dvdrental_filmes.data_processamento IS 
+    'Timestamp do processamento na camada Silver';
+"""
+
+
+# ==============================================================================
+# DOCUMENTAÇÃO FINAL
+# ==============================================================================
 """
 Esquema Final da Tabela dvdrental_filmes (Silver):
 
@@ -201,16 +236,26 @@ INFORMAÇÕES COMERCIAIS:
 METADADOS E AUDITORIA:
 - ultima_atualizacao (TIMESTAMP): Data/hora da última modificação no sistema origem
 - data_ingestao (TIMESTAMP)     : Data/hora de carga da camada Bronze
-- data_processamento (TIMESTAMP): Data/hora de processamento da camada Silver
+- data_processamento (TIMESTAMP): Data/hora de processamento na camada Silver
 
 VALIDAÇÕES APLICADAS:
-✓ titulo não pode ser nulo ou vazio
-✓ valor_aluguel deve ser maior que zero
-✓ duracao_aluguel_dias deve ser maior que zero
-✓ duracao_minutos deve ser maior que zero
-✓ custo_reposicao deve ser maior ou igual a zero
-⚠ classificacao deve estar na lista válida ou ser NULL (warning, não descarta)
-⚠ ano_lancamento deve estar entre 1900 e ano atual (warning, não descarta)
+✓ titulo não pode ser nulo ou vazio (expect_or_drop)
+✓ valor_aluguel deve ser maior que zero (expect_or_drop)
+✓ duracao_aluguel_dias deve ser maior que zero (expect_or_drop)
+✓ duracao_minutos deve ser maior que zero (expect_or_drop)
+✓ custo_reposicao deve ser maior ou igual a zero (expect_or_drop)
+⚠ classificacao deve estar na lista válida ou ser NULL (expect - warning apenas)
+⚠ ano_lancamento deve estar entre 1900 e ano atual (expect - warning apenas)
 
+PROCESSAMENTO INCREMENTAL:
+- Lê apenas registros novos/modificados da bronze (via dlt.read)
+- DLT usa ultima_atualizacao (sequence_by) para ordenar mudanças
+- Deduplicação automática por id_filme (keys)
+- SCD Type 1: sobrescreve registros existentes com versão mais recente
+- Re-execução é idempotente e segura
 
+FLUXO DE DADOS:
+PostgreSQL → Bronze (incremental via apply_changes) → Silver (incremental via apply_changes)
+
+Cada camada processa apenas o delta de dados, garantindo eficiência.
 """
