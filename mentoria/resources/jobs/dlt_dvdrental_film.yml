@@ -1,0 +1,38 @@
+# ==============================================================================
+# Job Configuration: DVD Rental Film Pipeline
+# ==============================================================================
+# Autor:          pcassio23@gmail.com
+# Criado em:      2025-01-08
+# Versão:         1.0.0
+# 
+# Descrição:
+#     Job para executar o pipeline pip_dvdrental_film que processa dados do
+#     banco PostgreSQL dvdrental através das camadas bronze, silver e gold.
+# 
+# Pipeline:       pip_dvdrental_film
+# Execução:       Manual (sem trigger)
+# Notificações:   Email em caso de falha
+# ==============================================================================
+
+resources:
+  jobs:
+    dlt_dvdrental_film:
+      name: "[${var.env}] - dlt_dvdrental_film"
+      
+      # No trigger - job runs manually via Databricks UI
+      
+      email_notifications:
+        on_failure:
+          - pcassio23@gmail.com
+      
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+      
+      tasks:
+        - task_key: run_dvdrental_film_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.pip_dvdrental_film.id}
+            full_refresh: false
