@@ -17,5 +17,5 @@ resources:
 
       environment:
         dependencies:
-          # Include dependencies from pyproject.toml
-          - --editable ${workspace.file_path}
+          # Include dependencies from pyproject.toml as wheel
+          - 'dist/*.whl'
