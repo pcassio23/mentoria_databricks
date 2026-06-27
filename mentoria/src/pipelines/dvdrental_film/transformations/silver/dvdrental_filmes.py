@@ -63,7 +63,6 @@ Notas:
 
 import dlt
 from pyspark.sql import functions as F
-from pyspark.sql.types import StructType, StructField, IntegerType, StringType, DecimalType, TimestampType
 
 # ==============================================================================
 # Silver Layer: Incremental Processing with Data Quality
@@ -95,8 +94,8 @@ def dvdrental_filmes_source():
         DataFrame: Dados limpos e validados com colunas em PT-BR
     """
     
-    # Read from Bronze layer (lê incrementalmente)
-    df_bronze = dlt.read("dvdrental_film")
+    # Read from Bronze layer (lê incrementalmente via streaming)
+    df_bronze = spark.readStream.table("dvdrental_film")
     
     # Apply transformations and translate columns in a single select
     # Performance otimizado: todas transformações em uma única operação
@@ -133,14 +132,20 @@ def dvdrental_filmes_source():
     return df_transformed
 
 
-# Apply changes to silver target table
+# Step 1: Create target streaming table
+dlt.create_streaming_table(
+    name="dvdrental_filmes",
+    comment="Silver table - Cleaned and validated film catalog with PT-BR column names"
+)
+
+# Step 2: Apply changes to silver target table
 # DLT gerencia automaticamente:
 # - Processamento incremental da bronze
 # - Deduplicação por id_filme
 # - Ordenação por ultima_atualizacao
 # - Merge idempotente (SCD Type 1)
 dlt.apply_changes(
-    target="silver.dvdrental_filmes",
+    target="dvdrental_filmes",
     source="dvdrental_filmes_source",
     keys=["id_filme"],                    # Chave primária (film_id traduzido)
     sequence_by="ultima_atualizacao",     # Ordenação temporal (last_update traduzido)
@@ -248,7 +253,7 @@ VALIDAÇÕES APLICADAS:
 ⚠ ano_lancamento deve estar entre 1900 e ano atual (expect - warning apenas)
 
 PROCESSAMENTO INCREMENTAL:
-- Lê apenas registros novos/modificados da bronze (via dlt.read)
+- Lê apenas registros novos/modificados da bronze (via streaming read)
 - DLT usa ultima_atualizacao (sequence_by) para ordenar mudanças
 - Deduplicação automática por id_filme (keys)
 - SCD Type 1: sobrescreve registros existentes com versão mais recente
