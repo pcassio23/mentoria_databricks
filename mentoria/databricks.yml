@@ -23,7 +23,6 @@ resources:
       project_id: 'mentoria-postgres-db'
       display_name: 'Mentoria Lakebase DB'
       pg_version: 17
-      enable_pg_native_login: false
 
   postgres_branches:
     dev_branch:
