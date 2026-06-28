@@ -36,7 +36,7 @@ resources:
       endpoint_id: 'primary'
       endpoint_type: 'ENDPOINT_TYPE_READ_ONLY'
       autoscaling_limit_min_cu: 0.5
-      autoscaling_limit_max_cu: 1.5
+      autoscaling_limit_max_cu: 1.0
       suspend_timeout_duration: "600s"
 
 targets:
