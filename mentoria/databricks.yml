@@ -20,7 +20,7 @@ variables:
 resources:
   postgres_projects:
     mentoria_database:
-      project_id: 'mentoria-postgres-db'
+      project_id: 'mentoria-lakebase-db'
       display_name: 'Mentoria Lakebase DB'
       pg_version: 17
 
