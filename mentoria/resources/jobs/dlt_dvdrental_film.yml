@@ -45,4 +45,4 @@ resources:
             - task_key: run_dvdrental_film_pipeline
           pipeline_task:
             # Pipeline criado automaticamente pelo postgres_synced_table
-            pipeline_id: ${resources.postgres_synced_tables.sync_dvdrental_filmes_analytics.data_synchronization_status.pipeline_id}
+            pipeline_id: ${resources.postgres_synced_tables.sync_dvdrental_filmes_analytics.id}

@@ -26,7 +26,7 @@ resources:
   postgres_synced_tables:
     sync_dvdrental_filmes_analytics:
       synced_table_id: "lakebase_catalog.dvdrental.filmes_analytics"
-      branch: "${var.lakebase_branch}"  # Example: "projects/my-project/branches/production"
+      branch: "${var.lakebase_branch}"
       source_table_full_name: "dev_catalog.gold.filmes_analytics"
       primary_key_columns:
         - "id_filme"
