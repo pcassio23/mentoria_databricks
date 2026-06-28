@@ -14,8 +14,3 @@ resources:
       libraries:
         - glob:
             include: ../../src/pipelines/dvdrental_film/transformations/**
-
-      environment:
-        dependencies:
-          # Include dependencies from pyproject.toml as wheel
-          - 'dist/*.whl'

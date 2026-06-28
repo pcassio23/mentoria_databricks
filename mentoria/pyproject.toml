@@ -1,4 +1,4 @@
-[project]
+eir[project]
 name = "mentoria"
 version = "0.0.1"
 authors = [{ name = "pcassio23@gmail.com" }]
@@ -19,9 +19,6 @@ dev = [
     "databricks-connect>=15.4,<15.5",
     "ipykernel",
 ]
-
-[project.scripts]
-main = "mentoria.main:main"
 
 [build-system]
 requires = ["hatchling"]

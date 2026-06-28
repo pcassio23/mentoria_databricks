@@ -5,11 +5,6 @@ include:
   - resources/jobs/*.yml
   - resources/pipelines/*.yml
 
-artifacts:
-  python_artifact:
-    type: whl
-    build: pip wheel . --no-deps --wheel-dir dist
-
 variables:
   catalog:
     description: The catalog to use
