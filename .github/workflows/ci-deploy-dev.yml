@@ -12,19 +12,11 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
-      
-      # Versão antiga comentada para validação:
-      # - name: Instalar Databricks CLI nova
-      #   run: |
-      #     curl -L https://github.com -o databricks.tar.gz
-      #     tar -xzf databricks.tar.gz
-      #     sudo mv databricks /usr/local/bin/
-
-      # Nova configuração que busca sempre a versão mais recente:
-      - name: Instalar Databricks CLI (Sempre a mais recente)
+      - name: Instalar Databricks CLI nova
         run: |
-          curl -fsSL https://githubusercontent.com | sudo sh
-          databricks -v # Exibe a versão instalada no log para conferência
+          curl -L https://github.com/databricks/cli/releases/download/v1.5.0/databricks_cli_1.5.0_linux_amd64.tar.gz -o databricks.tar.gz
+          tar -xzf databricks.tar.gz
+          sudo mv databricks /usr/local/bin/
       - name: Validar bundle (Dev)
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
@@ -38,19 +30,11 @@ jobs:
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
-      
-      # Versão antiga comentada para validação:
-      # - name: Instalar Databricks CLI nova
-      #   run: |
-      #     curl -L https://github.com -o databricks.tar.gz
-      #     tar -xzf databricks.tar.gz
-      #     sudo mv databricks /usr/local/bin/
-
-      # Nova configuração que busca sempre a versão mais recente:
-      - name: Instalar Databricks CLI (Sempre a mais recente)
+      - name: Instalar Databricks CLI nova
         run: |
-          curl -fsSL https://githubusercontent.com | sudo sh
-          databricks -v # Exibe a versão instalada no log para conferência
+          curl -L https://github.com/databricks/cli/releases/download/v1.5.0/databricks_cli_1.5.0_linux_amd64.tar.gz -o databricks.tar.gz
+          tar -xzf databricks.tar.gz
+          sudo mv databricks /usr/local/bin/
       - name: Deploy no Dev
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
