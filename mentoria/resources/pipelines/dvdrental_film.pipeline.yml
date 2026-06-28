@@ -10,6 +10,11 @@ resources:
       schema: ${var.bronze_schema}  # Schema padrão para tabelas bronze
       serverless: true
       root_path: "../../src/pipelines/dvdrental_film"
+      
+      configuration:
+        bundle.catalog: ${var.catalog}
+        bundle.silver_schema: ${var.silver_schema}
+        bundle.gold_schema: ${var.gold_schema}
 
       libraries:
         - glob:
