@@ -1,0 +1,39 @@
+# ============================================================================
+# Synced Table: Filmes Analytics to Lakebase
+# ============================================================================
+# 
+# Purpose:
+#   Syncs analytical film data from Unity Catalog to Lakebase Postgres
+#   Enables operational analytics and real-time queries on PostgreSQL
+#
+# Source:
+#   Unity Catalog Table: dev_catalog.gold.filmes_analytics
+#   Layer: Gold (business-ready analytics)
+#
+# Destination:
+#   Lakebase Catalog: lakebase_catalog.dvdrental.filmes_analytics
+#   Physical Table: databricks_postgres.dvdrental.filmes_analytics
+#
+# Type: postgres_synced_table (Lakebase Autoscaling)
+#
+# Configuration:
+#   - Primary Key: id_filme
+#   - Scheduling Policy: TRIGGERED (incremental updates on source change)
+#   - Pipeline: Auto-created and managed by Databricks
+# ============================================================================
+
+resources:
+  postgres_synced_tables:
+    sync_dvdrental_filmes_analytics:
+      synced_table_id: "lakebase_catalog.dvdrental.filmes_analytics"
+      branch: "${var.lakebase_branch}"  # Example: "projects/my-project/branches/production"
+      source_table_full_name: "dev_catalog.gold.filmes_analytics"
+      primary_key_columns:
+        - "id_filme"
+      scheduling_policy: "TRIGGERED"  # Options: TRIGGERED, CONTINUOUS, SNAPSHOT
+      postgres_database: "databricks_postgres"
+      create_database_objects_if_missing: true
+      
+      new_pipeline_spec:
+        storage_catalog: "${var.catalog}"
+        storage_schema: "gold"
