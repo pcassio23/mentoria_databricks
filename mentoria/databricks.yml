@@ -8,7 +8,7 @@ include:
 artifacts:
   python_artifact:
     type: whl
-    build: uv build --wheel
+    build: pip wheel . --no-deps --wheel-dir dist
 
 variables:
   catalog:
@@ -21,6 +21,29 @@ variables:
     description: The schema to use for silver layer
   env:
     description: The environment name (dev, prod, staging, etc.)
+
+resources:
+  postgres_projects:
+    mentoria_database:
+      project_id: 'mentoria-postgres-db'
+      display_name: 'Mentoria Lakebase DB'
+      pg_version: 17
+      enable_pg_native_login: false
+
+  postgres_branches:
+    dev_branch:
+      parent: ${resources.postgres_projects.mentoria_database.id}
+      branch_id: 'dev'
+      no_expiry: true
+
+  postgres_endpoints:
+    dev_endpoint:
+      parent: ${resources.postgres_branches.dev_branch.id}
+      endpoint_id: 'primary'
+      endpoint_type: 'ENDPOINT_TYPE_READ_ONLY'
+      autoscaling_limit_min_cu: 0.5
+      autoscaling_limit_max_cu: 1.5
+      suspend_timeout_duration: "600s"
 
 targets:
   dev:
