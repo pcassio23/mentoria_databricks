@@ -18,7 +18,7 @@
 #
 # Configuration:
 #   - Primary Key: id_filme
-#   - Scheduling Policy: TRIGGERED (incremental updates on source change)
+#   - Scheduling Policy: SNAPSHOT (full refresh on each sync)
 #   - Pipeline: Auto-created and managed by Databricks
 # ============================================================================
 
@@ -30,7 +30,7 @@ resources:
       source_table_full_name: "dev_catalog.gold.filmes_analytics"
       primary_key_columns:
         - "id_filme"
-      scheduling_policy: "TRIGGERED"  # Options: TRIGGERED, CONTINUOUS, SNAPSHOT
+      scheduling_policy: "SNAPSHOT"  # Full refresh mode (não requer CDF)
       postgres_database: "databricks_postgres"
       create_database_objects_if_missing: true
       
