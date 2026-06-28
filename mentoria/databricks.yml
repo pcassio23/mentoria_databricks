@@ -18,6 +18,8 @@ variables:
     description: The schema to use for gold layer
   env:
     description: The environment name (dev, prod, staging, etc.)
+  lakebase_branch:
+    description: The Lakebase branch path for synced tables
 
 resources:
   postgres_projects:
@@ -55,6 +57,7 @@ targets:
       silver_schema: silver
       gold_schema: gold
       env: dev
+      lakebase_branch: ${resources.postgres_branches.dev_branch.id}
 
   prod:
     mode: production
@@ -68,6 +71,7 @@ targets:
       silver_schema: silver
       gold_schema: gold
       env: prod
+      lakebase_branch: ${resources.postgres_branches.dev_branch.id}  # Atualizar para prod_branch quando criado
     permissions:
       - level: CAN_MANAGE
         user_name: pcassio23@gmail.com

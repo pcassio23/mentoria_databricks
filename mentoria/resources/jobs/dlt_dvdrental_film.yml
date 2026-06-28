@@ -3,15 +3,20 @@
 # ==============================================================================
 # Autor:          pcassio23@gmail.com
 # Criado em:      2025-01-08
-# Versão:         1.0.0
+# Versão:         1.1.0
 # 
 # Descrição:
 #     Job para executar o pipeline pip_dvdrental_film que processa dados do
-#     banco PostgreSQL dvdrental através das camadas bronze, silver e gold.
+#     banco PostgreSQL dvdrental através das camadas bronze, silver e gold,
+#     seguido pelo sync automático para Lakebase Postgres.
 # 
-# Pipeline:       pip_dvdrental_film
+# Pipeline:       pip_dvdrental_film + Lakebase sync (postgres_synced_table)
 # Execução:       Manual (sem trigger)
 # Notificações:   Email em caso de falha
+# 
+# Tasks:
+#     1. run_dvdrental_film_pipeline: Processa bronze → silver → gold
+#     2. sync_to_lakebase: Sincroniza gold → Lakebase Postgres via synced table
 # ==============================================================================
 
 resources:
@@ -34,3 +39,10 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.pip_dvdrental_film.id}
             full_refresh: false
+        
+        - task_key: sync_to_lakebase
+          depends_on:
+            - task_key: run_dvdrental_film_pipeline
+          pipeline_task:
+            # Pipeline criado automaticamente pelo postgres_synced_table
+            pipeline_id: ${resources.postgres_synced_tables.sync_dvdrental_filmes_analytics.data_synchronization_status.pipeline_id}

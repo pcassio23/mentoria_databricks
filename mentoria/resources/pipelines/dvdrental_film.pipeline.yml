@@ -1,6 +1,28 @@
-# Pipeline configuration for DVD Rental Film data ingestion and transformation
-# This pipeline ingests data from PostgreSQL dvdrental database
-# and processes it through bronze, silver, and gold layers
+# ============================================================================
+# Pipeline: DVD Rental Film Data Processing
+# ============================================================================
+# 
+# Purpose:
+#   Ingestion and transformation pipeline for DVD Rental database film data
+#   Implements medallion architecture (Bronze → Silver → Gold)
+#
+# Source:
+#   PostgreSQL database: dvdrental
+#   Tables: film, film_category, category, language, and related tables
+#
+# Target Architecture:
+#   - Bronze Layer: Raw data ingestion from PostgreSQL
+#   - Silver Layer: Cleaned and validated data
+#   - Gold Layer: Business-ready analytics tables
+#
+# Pipeline Type: Lakeflow Spark Declarative Pipeline (Serverless)
+#
+# Configuration:
+#   - Catalog: Configured via ${var.catalog}
+#   - Schemas: bronze, silver, gold (configured via variables)
+#   - Compute: Serverless (auto-scaling)
+#   - Root Path: ../../src/pipelines/dvdrental_film
+# ============================================================================
 
 resources:
   pipelines:
