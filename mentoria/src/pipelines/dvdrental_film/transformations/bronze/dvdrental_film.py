@@ -68,23 +68,6 @@ def get_checkpoint_timestamp():
         return "1900-01-01 00:00:00"
 
 
-def save_checkpoint_timestamp(max_timestamp):
-    """
-    Salva o novo checkpoint (máximo timestamp processado) na tabela de controle.
-    
-    Args:
-        max_timestamp: Timestamp máximo processado nesta execução
-    """
-    # Insert novo checkpoint
-    spark.sql(f"""
-        INSERT INTO {CHECKPOINT_TABLE} VALUES (
-            'dvdrental_film',
-            '{max_timestamp}',
-            current_timestamp()
-        )
-    """)
-
-
 @dlt.table(
     comment="Bronze table - DVD Rental film catalog with incremental updates from PostgreSQL"
 )
@@ -136,17 +119,51 @@ def dvdrental_film():
     # Add ingestion timestamp for data lineage tracking
     df_with_metadata = df.withColumn("ingestion_timestamp", F.current_timestamp())
     
-    # Calcular e salvar novo checkpoint (MAX last_update dos dados lidos)
-    if df_with_metadata.count() > 0:
-        new_max_timestamp = (
-            df_with_metadata
-            .agg(F.max("last_update").cast("string"))
-            .collect()[0][0]
-        )
-        save_checkpoint_timestamp(new_max_timestamp)
-        print(f"✅ Checkpoint updated to: {new_max_timestamp}")
-    
     return df_with_metadata
+
+
+# ============================================================================
+# Função para atualizar checkpoint (deve ser chamada via notebook externo)
+# ============================================================================
+
+def update_checkpoint_after_pipeline():
+    """
+    Atualiza o checkpoint com o MAX timestamp da tabela bronze.
+    
+    NOTA: Esta função deve ser chamada APÓS a execução do pipeline DLT,
+    via um notebook separado ou um job Python.
+    Não pode ser chamada de dentro de uma transformação DLT.
+    """
+    try:
+        # Lê o MAX timestamp da tabela bronze
+        max_ts_df = spark.sql("""
+            SELECT COALESCE(MAX(last_update), TIMESTAMP '1900-01-01 00:00:00') as new_max_ts
+            FROM dvdrental_film
+            WHERE last_update > (
+                SELECT COALESCE(MAX(last_processed_timestamp), TIMESTAMP '1900-01-01 00:00:00')
+                FROM dlt_checkpoint_dvdrental_film
+            )
+        """)
+        
+        new_max_ts = max_ts_df.collect()[0]['new_max_ts']
+        
+        if new_max_ts and str(new_max_ts) != "1900-01-01 00:00:00":
+            # Atualiza checkpoint
+            spark.sql(f"""
+                INSERT INTO {CHECKPOINT_TABLE} VALUES (
+                    'dvdrental_film',
+                    '{new_max_ts}',
+                    current_timestamp()
+                )
+            """)
+            print(f"✅ Checkpoint updated to: {new_max_ts}")
+            return True
+        else:
+            print("ℹ️  No new records to process")
+            return False
+    except Exception as e:
+        print(f"❌ Error updating checkpoint: {e}")
+        return False
 
 
 # ==============================================================================
