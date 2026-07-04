@@ -18,8 +18,10 @@ from datetime import datetime
 # Apply changes é reservado para fontes com CDC real (Kafka, Delta CDC, etc).
 # ==============================================================================
 
-# Nome da tabela de controle (será criada no mesmo schema que a tabela bronze)
-CHECKPOINT_TABLE = "dlt_checkpoint_dvdrental_film"
+# Obtém catálogo e schema do contexto do DLT
+CATALOG = spark.sql("SELECT current_catalog()").collect()[0][0]
+SCHEMA = spark.sql("SELECT current_schema()").collect()[0][0]
+CHECKPOINT_TABLE = f"{CATALOG}.{SCHEMA}.dlt_checkpoint_dvdrental_film"
 
 
 # ============================================================================
