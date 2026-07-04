@@ -22,6 +22,28 @@ from datetime import datetime
 CHECKPOINT_TABLE = "dlt_checkpoint_dvdrental_film"
 
 
+# ============================================================================
+# Inicialização - Cria tabela de controle se não existir (executado uma vez)
+# ============================================================================
+
+def initialize_checkpoint_table():
+    """Cria tabela de controle se não existir."""
+    try:
+        spark.sql(f"""
+            CREATE TABLE IF NOT EXISTS {CHECKPOINT_TABLE} (
+                table_name STRING,
+                last_processed_timestamp STRING,
+                last_update_time TIMESTAMP
+            )
+        """)
+        print(f"✅ Checkpoint table {CHECKPOINT_TABLE} ready")
+    except Exception as e:
+        print(f"⚠️  Error initializing checkpoint table: {e}")
+
+# Inicializa na primeira importação
+initialize_checkpoint_table()
+
+
 def get_checkpoint_timestamp():
     """
     Recupera o último timestamp processado da tabela de controle.
@@ -42,7 +64,7 @@ def get_checkpoint_timestamp():
         else:
             return "1900-01-01 00:00:00"
     except Exception:
-        # Primeira execução - tabela de controle não existe ainda
+        # Primeira execução - tabela de controle vazia
         return "1900-01-01 00:00:00"
 
 
@@ -53,15 +75,6 @@ def save_checkpoint_timestamp(max_timestamp):
     Args:
         max_timestamp: Timestamp máximo processado nesta execução
     """
-    # Cria tabela de controle se não existir
-    spark.sql(f"""
-        CREATE TABLE IF NOT EXISTS {CHECKPOINT_TABLE} (
-            table_name STRING,
-            last_processed_timestamp STRING,
-            last_update_time TIMESTAMP
-        )
-    """)
-    
     # Insert novo checkpoint
     spark.sql(f"""
         INSERT INTO {CHECKPOINT_TABLE} VALUES (
