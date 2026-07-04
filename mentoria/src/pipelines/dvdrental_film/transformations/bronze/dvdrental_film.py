@@ -9,7 +9,7 @@ from datetime import datetime
 # Implementa carga incremental de PostgreSQL com state management robusto.
 # 
 # Estratégia:
-# 1. Usa arquivo de state (checkpoint) para rastrear último timestamp processado
+# 1. Usa tabela de controle no UC para rastrear último timestamp processado
 # 2. Lê incrementalmente do JDBC filtrando por last_update > stored checkpoint
 # 3. DLT gerencia a deduplicação e merge automaticamente
 # 4. Atualiza checkpoint ao final de cada execução
@@ -18,48 +18,58 @@ from datetime import datetime
 # Apply changes é reservado para fontes com CDC real (Kafka, Delta CDC, etc).
 # ==============================================================================
 
-# Configuração do estado/checkpoint
-STATE_PATH = "/tmp/dlt_bronze_checkpoint"
-STATE_FILE = f"{STATE_PATH}/dvdrental_film_state"
+# Nome da tabela de controle (será criada no mesmo schema que a tabela bronze)
+CHECKPOINT_TABLE = "dlt_checkpoint_dvdrental_film"
 
 
 def get_checkpoint_timestamp():
     """
-    Recupera o último timestamp processado do arquivo de estado.
+    Recupera o último timestamp processado da tabela de controle.
     
     Returns:
         str: Timestamp no formato 'YYYY-MM-DD HH:MM:SS', ou '1900-01-01 00:00:00' se primeira execução
     """
     try:
-        # Tenta ler arquivo de estado (Delta format)
-        state_df = spark.read.format("delta").load(STATE_FILE)
-        state_row = state_df.first()
-        if state_row:
-            return state_row["last_processed_timestamp"]
+        # Tenta ler último checkpoint da tabela de controle
+        checkpoint_df = spark.sql(f"""
+            SELECT MAX(last_processed_timestamp) as max_ts
+            FROM {CHECKPOINT_TABLE}
+        """)
+        
+        result = checkpoint_df.collect()[0]["max_ts"]
+        if result:
+            return str(result)
         else:
             return "1900-01-01 00:00:00"
     except Exception:
-        # Primeira execução - arquivo não existe
+        # Primeira execução - tabela de controle não existe ainda
         return "1900-01-01 00:00:00"
 
 
 def save_checkpoint_timestamp(max_timestamp):
     """
-    Salva o novo checkpoint (máximo timestamp processado) no arquivo de estado.
+    Salva o novo checkpoint (máximo timestamp processado) na tabela de controle.
     
     Args:
         max_timestamp: Timestamp máximo processado nesta execução
     """
-    checkpoint_data = [
-        {
-            "last_processed_timestamp": str(max_timestamp),
-            "last_update_time": datetime.now().isoformat()
-        }
-    ]
+    # Cria tabela de controle se não existir
+    spark.sql(f"""
+        CREATE TABLE IF NOT EXISTS {CHECKPOINT_TABLE} (
+            table_name STRING,
+            last_processed_timestamp STRING,
+            last_update_time TIMESTAMP
+        )
+    """)
     
-    # Cria DataFrame e salva como Delta (compatível com DLT serverless)
-    checkpoint_df = spark.createDataFrame(checkpoint_data)
-    checkpoint_df.write.format("delta").mode("overwrite").save(STATE_FILE)
+    # Insert novo checkpoint
+    spark.sql(f"""
+        INSERT INTO {CHECKPOINT_TABLE} VALUES (
+            'dvdrental_film',
+            '{max_timestamp}',
+            current_timestamp()
+        )
+    """)
 
 
 @dlt.table(
