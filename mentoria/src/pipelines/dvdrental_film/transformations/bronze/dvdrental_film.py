@@ -1,7 +1,6 @@
 import dlt
 from pyspark.sql import functions as F
 from datetime import datetime
-import json
 
 # ==============================================================================
 # Bronze Layer: Incremental Ingestion from PostgreSQL
@@ -21,7 +20,7 @@ import json
 
 # Configuração do estado/checkpoint
 STATE_PATH = "/tmp/dlt_bronze_checkpoint"
-STATE_FILE = f"{STATE_PATH}/dvdrental_film_state.json"
+STATE_FILE = f"{STATE_PATH}/dvdrental_film_state"
 
 
 def get_checkpoint_timestamp():
@@ -32,11 +31,13 @@ def get_checkpoint_timestamp():
         str: Timestamp no formato 'YYYY-MM-DD HH:MM:SS', ou '1900-01-01 00:00:00' se primeira execução
     """
     try:
-        # Tenta ler arquivo de estado
-        state_df = spark.read.text(STATE_FILE)
-        state_json = state_df.collect()[0][0]
-        state = json.loads(state_json)
-        return state.get("last_processed_timestamp", "1900-01-01 00:00:00")
+        # Tenta ler arquivo de estado (Delta format)
+        state_df = spark.read.format("delta").load(STATE_FILE)
+        state_row = state_df.first()
+        if state_row:
+            return state_row["last_processed_timestamp"]
+        else:
+            return "1900-01-01 00:00:00"
     except Exception:
         # Primeira execução - arquivo não existe
         return "1900-01-01 00:00:00"
@@ -49,14 +50,16 @@ def save_checkpoint_timestamp(max_timestamp):
     Args:
         max_timestamp: Timestamp máximo processado nesta execução
     """
-    state = {
-        "last_processed_timestamp": max_timestamp,
-        "last_update_time": datetime.now().isoformat()
-    }
+    checkpoint_data = [
+        {
+            "last_processed_timestamp": str(max_timestamp),
+            "last_update_time": datetime.now().isoformat()
+        }
+    ]
     
-    # Salva como JSON em Delta Lake
-    state_rdd = spark.sparkContext.parallelize([json.dumps(state)])
-    state_rdd.coalesce(1).saveAsTextFile(STATE_FILE, compressionCodecClass=None)
+    # Cria DataFrame e salva como Delta (compatível com DLT serverless)
+    checkpoint_df = spark.createDataFrame(checkpoint_data)
+    checkpoint_df.write.format("delta").mode("overwrite").save(STATE_FILE)
 
 
 @dlt.table(
