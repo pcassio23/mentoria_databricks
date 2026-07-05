@@ -18,10 +18,20 @@ from datetime import datetime
 # Apply changes é reservado para fontes com CDC real (Kafka, Delta CDC, etc).
 # ==============================================================================
 
-# Obtém catálogo e schema do contexto do DLT
-CATALOG = spark.sql("SELECT current_catalog()").collect()[0][0]
-SCHEMA = spark.sql("SELECT current_schema()").collect()[0][0]
-CHECKPOINT_TABLE = f"{CATALOG}.{SCHEMA}.dlt_checkpoint_dvdrental_film"
+
+def get_checkpoint_table_path():
+    """
+    Obtém o caminho completo da tabela de checkpoint (catalog.schema.table).
+    Deve ser chamada dentro do contexto DLT.
+    """
+    try:
+        catalog = spark.sql("SELECT current_catalog()").collect()[0][0]
+        schema = spark.sql("SELECT current_schema()").collect()[0][0]
+        return f"{catalog}.{schema}.dlt_checkpoint_dvdrental_film"
+    except Exception as e:
+        print(f"⚠️  Error getting checkpoint table path: {e}")
+        # Fallback para schema padrão
+        return "default.dlt_checkpoint_dvdrental_film"
 
 
 # ============================================================================
@@ -31,14 +41,15 @@ CHECKPOINT_TABLE = f"{CATALOG}.{SCHEMA}.dlt_checkpoint_dvdrental_film"
 def initialize_checkpoint_table():
     """Cria tabela de controle se não existir."""
     try:
+        checkpoint_table = get_checkpoint_table_path()
         spark.sql(f"""
-            CREATE TABLE IF NOT EXISTS {CHECKPOINT_TABLE} (
+            CREATE TABLE IF NOT EXISTS {checkpoint_table} (
                 table_name STRING,
                 last_processed_timestamp STRING,
                 last_update_time TIMESTAMP
             )
         """)
-        print(f"✅ Checkpoint table {CHECKPOINT_TABLE} ready")
+        print(f"✅ Checkpoint table {checkpoint_table} ready")
     except Exception as e:
         print(f"⚠️  Error initializing checkpoint table: {e}")
 
@@ -54,10 +65,11 @@ def get_checkpoint_timestamp():
         str: Timestamp no formato 'YYYY-MM-DD HH:MM:SS', ou '1900-01-01 00:00:00' se primeira execução
     """
     try:
+        checkpoint_table = get_checkpoint_table_path()
         # Tenta ler último checkpoint da tabela de controle
         checkpoint_df = spark.sql(f"""
             SELECT MAX(last_processed_timestamp) as max_ts
-            FROM {CHECKPOINT_TABLE}
+            FROM {checkpoint_table}
         """)
         
         result = checkpoint_df.collect()[0]["max_ts"]
@@ -65,7 +77,8 @@ def get_checkpoint_timestamp():
             return str(result)
         else:
             return "1900-01-01 00:00:00"
-    except Exception:
+    except Exception as e:
+        print(f"⚠️  Error reading checkpoint: {e}")
         # Primeira execução - tabela de controle vazia
         return "1900-01-01 00:00:00"
 
@@ -137,14 +150,12 @@ def update_checkpoint_after_pipeline():
     Não pode ser chamada de dentro de uma transformação DLT.
     """
     try:
+        checkpoint_table = get_checkpoint_table_path()
+        
         # Lê o MAX timestamp da tabela bronze
         max_ts_df = spark.sql("""
             SELECT COALESCE(MAX(last_update), TIMESTAMP '1900-01-01 00:00:00') as new_max_ts
             FROM dvdrental_film
-            WHERE last_update > (
-                SELECT COALESCE(MAX(last_processed_timestamp), TIMESTAMP '1900-01-01 00:00:00')
-                FROM dlt_checkpoint_dvdrental_film
-            )
         """)
         
         new_max_ts = max_ts_df.collect()[0]['new_max_ts']
@@ -152,7 +163,7 @@ def update_checkpoint_after_pipeline():
         if new_max_ts and str(new_max_ts) != "1900-01-01 00:00:00":
             # Atualiza checkpoint
             spark.sql(f"""
-                INSERT INTO {CHECKPOINT_TABLE} VALUES (
+                INSERT INTO {checkpoint_table} VALUES (
                     'dvdrental_film',
                     '{new_max_ts}',
                     current_timestamp()
@@ -175,29 +186,30 @@ def update_checkpoint_after_pipeline():
 Pattern para Carga Incremental de JDBC sem CDC Nativo com Estado Persistente:
 
 1. PRIMEIRA EXECUÇÃO:
-   - Arquivo de checkpoint não existe
+   - Tabela de controle é criada automaticamente
    - Query lê todos os registros (WHERE last_update > '1900-01-01')
    - Cria tabela bronze com todos os dados
-   - Salva MAX(last_update) no arquivo de estado
+   - Insere primeiro checkpoint com MAX(last_update)
 
 2. EXECUÇÕES SUBSEQUENTES:
-   - Lê timestamp do arquivo de checkpoint
+   - Lê timestamp da tabela de controle
    - Query lê apenas registros WHERE last_update > checkpoint
    - DLT faz MERGE automático dos novos registros
-   - Atualiza checkpoint com novo MAX(last_update)
+   - Novo checkpoint é inserido após execução bem-sucedida
 
 3. CHECKPOINT/STATE MANAGEMENT:
-   - Arquivo JSON salvo em /tmp/dlt_bronze_checkpoint/dvdrental_film_state.json
-   - Independente da tabela DLT (mais robusto)
+   - Tabela criada automaticamente no mesmo catalog e schema do pipeline
+   - Nome: {catalog}.{schema}.dlt_checkpoint_dvdrental_film
+   - Mantém histórico de todos os checkpoints
    - Persiste entre execuções do pipeline
-   - Inclui timestamp da última atualização
 
 VANTAGENS:
 ✓ Lê apenas dados novos/modificados (eficiência garantida)
-✓ State separado da tabela (não depende de meta-dados da tabela)  
+✓ Checkpoint em tabela UC (rastreável e auditável)  
 ✓ Idempotente (re-executar é seguro)
 ✓ Suporta late-arriving data
 ✓ Recuperação de falhas é confiável
+✓ Histórico completo de execuções
 ✓ Logs informativos para troubleshooting
 
 QUANDO USAR ESTE PATTERN:
@@ -206,7 +218,7 @@ QUANDO USAR ESTE PATTERN:
 - Volume incremental é gerenciável
 - Não precisa rastrear deletes (apenas inserts/updates)
 
-WHEN NÃO USAR:
+QUANDO NÃO USAR:
 - Precisa rastrear deletes → Use apply_changes com fonte CDC real
 - Volume muito grande → Use export para files + Auto Loader  
 - Fonte tem CDC nativo (Debezium, etc) → Use apply_changes com Kafka
