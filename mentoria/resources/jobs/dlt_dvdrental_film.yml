@@ -32,6 +32,7 @@
 #     2025-01-08  v2.0.0  Adicionada task de update checkpoint para carga incremental
 #     2025-01-08  v2.0.1  Ajuste para serverless compute (Databricks Free Edition)
 #     2025-01-08  v2.0.2  Caminho relativo para notebook + Task 3 descomentada
+#     2025-01-08  v2.0.3  Corrigida referência do synced_table pipeline
 # ==============================================================================
 
 resources:

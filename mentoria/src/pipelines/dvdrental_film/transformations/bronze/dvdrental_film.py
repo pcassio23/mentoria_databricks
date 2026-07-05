@@ -12,7 +12,7 @@ from datetime import datetime
 # 1. Usa tabela de controle no UC para rastrear último timestamp processado
 # 2. Lê incrementalmente do JDBC filtrando por last_update > stored checkpoint
 # 3. DLT gerencia a deduplicação e merge automaticamente
-# 4. Atualiza checkpoint ao final de cada execução
+# 4. Checkpoint é atualizado via Task 2 do Job (notebook externo)
 #
 # Nota: Para fontes JDBC sem CDC nativo, usamos @dlt.table() com batch read.
 # Apply changes é reservado para fontes com CDC real (Kafka, Delta CDC, etc).
@@ -21,20 +21,21 @@ from datetime import datetime
 
 def get_checkpoint_table_path():
     """
-    Obtém o caminho completo da tabela de checkpoint (catalog.schema.table).
-    Deve ser chamada dentro do contexto DLT.
+    Retorna o caminho completo da tabela de checkpoint.
+    
+    IMPORTANTE: Usa catalog e schema FIXOS para evitar problemas com contexto.
+    O DLT pode executar em um contexto diferente (workspace.bronze) do esperado.
+    
+    Returns:
+        str: Caminho fixo dev_catalog.bronze.dlt_checkpoint_dvdrental_film
     """
-    try:
-        catalog = spark.sql("SELECT current_catalog()").collect()[0][0]
-        schema = spark.sql("SELECT current_schema()").collect()[0][0]
-        return f"{catalog}.{schema}.dlt_checkpoint_dvdrental_film"
-    except Exception as e:
-        print(f"⚠️  Error getting checkpoint table path: {e}")
-        # Fallback para schema padrão
-        return "default.dlt_checkpoint_dvdrental_film"
-
-
-
+    # Usar valores fixos para garantir consistência
+    # O checkpoint sempre vive em dev_catalog.bronze independente do contexto DLT
+    catalog = "dev_catalog"
+    schema = "bronze"
+    table_name = "dlt_checkpoint_dvdrental_film"
+    
+    return f"{catalog}.{schema}.{table_name}"
 
 
 def get_checkpoint_timestamp():
@@ -46,6 +47,9 @@ def get_checkpoint_timestamp():
     """
     try:
         checkpoint_table = get_checkpoint_table_path()
+        
+        print(f"📍 Reading checkpoint from: {checkpoint_table}")
+        
         # Tenta ler último checkpoint da tabela de controle
         checkpoint_df = spark.sql(f"""
             SELECT MAX(last_processed_timestamp) as max_ts
@@ -54,12 +58,16 @@ def get_checkpoint_timestamp():
         
         result = checkpoint_df.collect()[0]["max_ts"]
         if result:
-            return str(result)
+            timestamp_str = str(result)
+            print(f"✅ Found checkpoint: {timestamp_str}")
+            return timestamp_str
         else:
+            print("⚠️  No checkpoint found - starting from beginning")
             return "1900-01-01 00:00:00"
     except Exception as e:
         print(f"⚠️  Error reading checkpoint: {e}")
-        # Primeira execução - tabela de controle vazia
+        print("⚠️  Falling back to initial load (1900-01-01)")
+        # Primeira execução - tabela de controle vazia ou não existe
         return "1900-01-01 00:00:00"
 
 
@@ -117,58 +125,6 @@ def dvdrental_film():
     return df_with_metadata
 
 
-# ============================================================================
-# Função para atualizar checkpoint (deve ser chamada via notebook externo)
-# ============================================================================
-
-def update_checkpoint_after_pipeline():
-    """
-    Atualiza o checkpoint com o MAX timestamp da tabela bronze.
-    
-    NOTA: Esta função deve ser chamada APÓS a execução do pipeline DLT,
-    via um notebook separado ou um job Python.
-    Não pode ser chamada de dentro de uma transformação DLT.
-    """
-    try:
-        checkpoint_table = get_checkpoint_table_path()
-        
-        # Lê o MAX timestamp da tabela bronze
-        max_ts_df = spark.sql("""
-            SELECT COALESCE(MAX(last_update), TIMESTAMP '1900-01-01 00:00:00') as new_max_ts
-            FROM dvdrental_film
-        """)
-        
-        new_max_ts = max_ts_df.collect()[0]['new_max_ts']
-        
-        if new_max_ts and str(new_max_ts) != "1900-01-01 00:00:00":
-            # MERGE em vez de INSERT - mantém apenas 1 registro por tabela
-            spark.sql(f"""
-                MERGE INTO {checkpoint_table} AS target
-                USING (
-                    SELECT 
-                        'dvdrental_film' as table_name,
-                        TIMESTAMP '{new_max_ts}' as last_processed_timestamp,
-                        current_timestamp() as last_update_time
-                ) AS source
-                ON target.table_name = source.table_name
-                WHEN MATCHED THEN 
-                    UPDATE SET 
-                        target.last_processed_timestamp = source.last_processed_timestamp,
-                        target.last_update_time = source.last_update_time
-                WHEN NOT MATCHED THEN 
-                    INSERT (table_name, last_processed_timestamp, last_update_time)
-                    VALUES (source.table_name, source.last_processed_timestamp, source.last_update_time)
-            """)
-            print(f"✅ Checkpoint updated to: {new_max_ts}")
-            return True
-        else:
-            print("ℹ️  No new records to process")
-            return False
-    except Exception as e:
-        print(f"❌ Error updating checkpoint: {e}")
-        return False
-
-
 # ==============================================================================
 # DOCUMENTAÇÃO: Incremental JDBC Pattern com State Management
 # ==============================================================================
@@ -176,22 +132,27 @@ def update_checkpoint_after_pipeline():
 Pattern para Carga Incremental de JDBC sem CDC Nativo com Estado Persistente:
 
 1. PRIMEIRA EXECUÇÃO:
-   - Tabela de controle é criada automaticamente
+   - Checkpoint table deve existir em dev_catalog.bronze.dlt_checkpoint_dvdrental_film
    - Query lê todos os registros (WHERE last_update > '1900-01-01')
    - Cria tabela bronze com todos os dados
-   - Insere primeiro checkpoint com MAX(last_update)
+   - Task 2 do Job atualiza checkpoint com MAX(last_update)
 
 2. EXECUÇÕES SUBSEQUENTES:
-   - Lê timestamp da tabela de controle
+   - Lê timestamp da tabela de controle (dev_catalog.bronze.dlt_checkpoint_dvdrental_film)
    - Query lê apenas registros WHERE last_update > checkpoint
    - DLT faz MERGE automático dos novos registros
-   - Novo checkpoint é inserido após execução bem-sucedida
+   - Task 2 do Job atualiza checkpoint após pipeline
 
 3. CHECKPOINT/STATE MANAGEMENT:
-   - Tabela criada automaticamente no mesmo catalog e schema do pipeline
-   - Nome: {catalog}.{schema}.dlt_checkpoint_dvdrental_film
-   - Mantém histórico de todos os checkpoints
+   - Tabela: dev_catalog.bronze.dlt_checkpoint_dvdrental_film (FIXO)
+   - Atualização: Via Task 2 do Job (notebook scripts/update_checkpoint.py)
+   - Usa MERGE para manter apenas 1 registro por tabela
    - Persiste entre execuções do pipeline
+
+FLUXO DO JOB:
+Task 1: Run DLT Pipeline (executa este código) → lê checkpoint incremental
+Task 2: Update Checkpoint (notebook externo) → atualiza checkpoint com MAX timestamp
+Task 3: Sync to Lakebase (synced table) → sincroniza gold para Postgres
 
 VANTAGENS:
 ✓ Lê apenas dados novos/modificados (eficiência garantida)
@@ -199,7 +160,7 @@ VANTAGENS:
 ✓ Idempotente (re-executar é seguro)
 ✓ Suporta late-arriving data
 ✓ Recuperação de falhas é confiável
-✓ Histórico completo de execuções
+✓ Checkpoint não cresce infinitamente (MERGE mantém 1 registro)
 ✓ Logs informativos para troubleshooting
 
 QUANDO USAR ESTE PATTERN:
@@ -212,4 +173,9 @@ QUANDO NÃO USAR:
 - Precisa rastrear deletes → Use apply_changes com fonte CDC real
 - Volume muito grande → Use export para files + Auto Loader  
 - Fonte tem CDC nativo (Debezium, etc) → Use apply_changes com Kafka
+
+TROUBLESHOOTING:
+- Se pipeline faz full recompute: Verifique se checkpoint table existe e tem dados
+- Se erro "table not found": Execute scripts/setup_checkpoint_table.sql primeiro
+- Se Task 2 falha: Verifique permissões e se bronze table foi populada
 """
