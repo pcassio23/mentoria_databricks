@@ -34,27 +34,7 @@ def get_checkpoint_table_path():
         return "default.dlt_checkpoint_dvdrental_film"
 
 
-# ============================================================================
-# Inicialização - Cria tabela de controle se não existir (executado uma vez)
-# ============================================================================
 
-def initialize_checkpoint_table():
-    """Cria tabela de controle se não existir."""
-    try:
-        checkpoint_table = get_checkpoint_table_path()
-        spark.sql(f"""
-            CREATE TABLE IF NOT EXISTS {checkpoint_table} (
-                table_name STRING,
-                last_processed_timestamp STRING,
-                last_update_time TIMESTAMP
-            )
-        """)
-        print(f"✅ Checkpoint table {checkpoint_table} ready")
-    except Exception as e:
-        print(f"⚠️  Error initializing checkpoint table: {e}")
-
-# Inicializa na primeira importação
-initialize_checkpoint_table()
 
 
 def get_checkpoint_timestamp():
@@ -161,13 +141,23 @@ def update_checkpoint_after_pipeline():
         new_max_ts = max_ts_df.collect()[0]['new_max_ts']
         
         if new_max_ts and str(new_max_ts) != "1900-01-01 00:00:00":
-            # Atualiza checkpoint
+            # MERGE em vez de INSERT - mantém apenas 1 registro por tabela
             spark.sql(f"""
-                INSERT INTO {checkpoint_table} VALUES (
-                    'dvdrental_film',
-                    '{new_max_ts}',
-                    current_timestamp()
-                )
+                MERGE INTO {checkpoint_table} AS target
+                USING (
+                    SELECT 
+                        'dvdrental_film' as table_name,
+                        TIMESTAMP '{new_max_ts}' as last_processed_timestamp,
+                        current_timestamp() as last_update_time
+                ) AS source
+                ON target.table_name = source.table_name
+                WHEN MATCHED THEN 
+                    UPDATE SET 
+                        target.last_processed_timestamp = source.last_processed_timestamp,
+                        target.last_update_time = source.last_update_time
+                WHEN NOT MATCHED THEN 
+                    INSERT (table_name, last_processed_timestamp, last_update_time)
+                    VALUES (source.table_name, source.last_processed_timestamp, source.last_update_time)
             """)
             print(f"✅ Checkpoint updated to: {new_max_ts}")
             return True
