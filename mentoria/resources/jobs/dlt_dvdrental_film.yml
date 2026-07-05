@@ -1,22 +1,37 @@
 # ==============================================================================
-# Job Configuration: DVD Rental Film Pipeline
+# Job Configuration: DVD Rental Film Pipeline com Checkpoint Management
 # ==============================================================================
 # Autor:          pcassio23@gmail.com
 # Criado em:      2025-01-08
-# Versão:         1.1.0
+# Versão:         2.0.0
 # 
 # Descrição:
 #     Job para executar o pipeline pip_dvdrental_film que processa dados do
 #     banco PostgreSQL dvdrental através das camadas bronze, silver e gold,
-#     seguido pelo sync automático para Lakebase Postgres.
+#     seguido pela atualização do checkpoint para carga incremental.
 # 
-# Pipeline:       pip_dvdrental_film + Lakebase sync (postgres_synced_table)
-# Execução:       Manual (sem trigger)
+# Pipeline:       pip_dvdrental_film (Bronze → Silver → Gold)
+# Execução:       Manual ou Scheduled
 # Notificações:   Email em caso de falha
 # 
 # Tasks:
-#     1. run_dvdrental_film_pipeline: Processa bronze → silver → gold
-#     2. sync_to_lakebase: Sincroniza gold → Lakebase Postgres via synced table
+#     1. run_dvdrental_film_pipeline: Processa bronze → silver → gold (incremental)
+#     2. update_checkpoint: Atualiza tabela de controle com último timestamp processado
+#     3. sync_to_lakebase: Sincroniza gold → Lakebase Postgres
+# 
+# Fluxo de Carga Incremental:
+#     - Task 1 lê checkpoint e processa apenas novos registros
+#     - Task 2 atualiza checkpoint com MAX(last_update) da bronze
+#     - Task 3 sincroniza dados finais para Lakebase
+# 
+# Compute:
+#     - Todas as tasks usam SERVERLESS COMPUTE (Databricks Free Edition)
+# 
+# Histórico de Alterações:
+#     2025-01-08  v1.0.0  Versão inicial com pipeline + Lakebase sync
+#     2025-01-08  v2.0.0  Adicionada task de update checkpoint para carga incremental
+#     2025-01-08  v2.0.1  Ajuste para serverless compute (Databricks Free Edition)
+#     2025-01-08  v2.0.2  Caminho relativo para notebook + Task 3 descomentada
 # ==============================================================================
 
 resources:
@@ -24,7 +39,11 @@ resources:
     dlt_dvdrental_film:
       name: "[${var.env}] - dlt_dvdrental_film"
       
-      # No trigger - job runs manually via Databricks UI
+      # Job execution schedule (opcional - descomente para agendar)
+      # schedule:
+      #   quartz_cron_expression: "0 0 2 * * ?"  # Diariamente às 2:00 AM
+      #   timezone_id: "America/Sao_Paulo"
+      #   pause_status: UNPAUSED
       
       email_notifications:
         on_failure:
@@ -35,14 +54,44 @@ resources:
           default: ${var.catalog}
       
       tasks:
+        # ======================================================================
+        # Task 1: Executar Pipeline DLT (Processamento Incremental)
+        # ======================================================================
         - task_key: run_dvdrental_film_pipeline
           pipeline_task:
             pipeline_id: ${resources.pipelines.pip_dvdrental_film.id}
-            full_refresh: false
+            full_refresh: false  # Incremental - lê apenas dados novos
         
-        - task_key: sync_to_lakebase
+        # ======================================================================
+        # Task 2: Atualizar Checkpoint (Após Pipeline DLT)
+        # ======================================================================
+        # 
+        # Esta task atualiza a tabela de controle (checkpoint) com o MAX timestamp
+        # processado pela camada bronze. Usa MERGE para manter apenas 1 registro.
+        # 
+        # IMPORTANTE: Esta task SÓ executa se Task 1 for bem-sucedida.
+        # Usa SERVERLESS COMPUTE automaticamente (Databricks Free Edition).
+        # ======================================================================
+        - task_key: update_checkpoint
           depends_on:
             - task_key: run_dvdrental_film_pipeline
+          notebook_task:
+            notebook_path: ${workspace.file_path}/src/pipelines/dvdrental_film/scripts/update_checkpoint
+            source: WORKSPACE
+          
+          # Timeout de 10 minutos para update do checkpoint
+          timeout_seconds: 600
+        
+        # ======================================================================
+        # Task 3: Sync para Lakebase
+        # ======================================================================
+        # 
+        # Sincroniza dados da camada Gold para Lakebase Postgres.
+        # Só executa se Task 2 (update_checkpoint) for bem-sucedida.
+        # ======================================================================
+        - task_key: sync_to_lakebase
+          depends_on:
+            - task_key: update_checkpoint
           pipeline_task:
             # Pipeline criado automaticamente pelo postgres_synced_table
             pipeline_id: ${resources.postgres_synced_tables.sync_dvdrental_filmes_analytics_v2.id}

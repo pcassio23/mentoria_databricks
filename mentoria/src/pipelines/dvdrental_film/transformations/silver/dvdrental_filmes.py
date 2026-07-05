@@ -95,7 +95,8 @@ def dvdrental_filmes_source():
     """
     
     # Read from Bronze layer (lê incrementalmente via streaming)
-    df_bronze = spark.readStream.table("dvdrental_film")
+    # skipChangeCommits ignora commits de UPDATE/DELETE da tabela bronze
+    df_bronze = spark.readStream.option("skipChangeCommits", "true").table("dvdrental_film")
     
     # Apply transformations and translate columns in a single select
     # Performance otimizado: todas transformações em uma única operação
