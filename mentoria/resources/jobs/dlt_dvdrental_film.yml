@@ -83,17 +83,3 @@ resources:
           
           # Timeout de 10 minutos para update do checkpoint
           timeout_seconds: 600
-        
-        # ======================================================================
-        # Task 3: Sync para Lakebase
-        # ======================================================================
-        # 
-        # Sincroniza dados da camada Gold para Lakebase Postgres.
-        # Só executa se Task 2 (update_checkpoint) for bem-sucedida.
-        # ======================================================================
-        - task_key: sync_to_lakebase
-          depends_on:
-            - task_key: update_checkpoint
-          pipeline_task:
-            # Pipeline criado automaticamente pelo postgres_synced_table
-            pipeline_id: ${resources.postgres_synced_tables.sync_dvdrental_filmes_analytics.id}
