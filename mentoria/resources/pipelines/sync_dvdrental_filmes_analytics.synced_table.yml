@@ -35,5 +35,6 @@ resources:
       create_database_objects_if_missing: true
       
       new_pipeline_spec:
+        name: "[${var.env}] - sync_filmes_analytics_to_lakebase"  # Nome customizado do pipeline
         storage_catalog: "${var.catalog}"
         storage_schema: "gold"
