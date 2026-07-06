@@ -7,7 +7,7 @@
 #   Enables operational analytics and real-time queries on PostgreSQL
 #
 # Source:
-#   Unity Catalog Table: dev_catalog.gold.filmes_analytics
+#   Unity Catalog Table: ${var.catalog}.gold.filmes_analytics
 #   Layer: Gold (business-ready analytics)
 #
 # Destination:
@@ -24,10 +24,10 @@
 
 resources:
   postgres_synced_tables:
-    sync_dvdrental_filmes_analytics_v2:
+    sync_dvdrental_filmes_analytics:
       synced_table_id: "lakebase_catalog.dvdrental.filmes_analytics"
       branch: "${var.lakebase_branch}"
-      source_table_full_name: "dev_catalog.gold.filmes_analytics"
+      source_table_full_name: "${var.catalog}.gold.filmes_analytics"
       primary_key_columns:
         - "id_filme"
       scheduling_policy: "SNAPSHOT"  # Full refresh mode (não requer CDF)
@@ -35,6 +35,6 @@ resources:
       create_database_objects_if_missing: true
       
       new_pipeline_spec:
-        name: "[${var.env}] - sync_filmes_analytics_to_lakebase"  # Nome customizado do pipeline
+        name: "[${var.env}] - sync_filmes_analytics_to_lakebase"
         storage_catalog: "${var.catalog}"
         storage_schema: "gold"

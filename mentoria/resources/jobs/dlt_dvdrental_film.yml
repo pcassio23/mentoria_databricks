@@ -33,6 +33,7 @@
 #     2025-01-08  v2.0.1  Ajuste para serverless compute (Databricks Free Edition)
 #     2025-01-08  v2.0.2  Caminho relativo para notebook + Task 3 descomentada
 #     2025-01-08  v2.0.3  Corrigida referência do synced_table pipeline
+#     2025-01-08  v2.0.4  Resource key simplificado (removido _v2)
 # ==============================================================================
 
 resources:
@@ -95,4 +96,4 @@ resources:
             - task_key: update_checkpoint
           pipeline_task:
             # Pipeline criado automaticamente pelo postgres_synced_table
-            pipeline_id: ${resources.postgres_synced_tables.sync_dvdrental_filmes_analytics_v2.id}
+            pipeline_id: ${resources.postgres_synced_tables.sync_dvdrental_filmes_analytics.id}
