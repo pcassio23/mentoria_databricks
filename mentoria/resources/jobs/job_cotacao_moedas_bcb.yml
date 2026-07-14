@@ -1,0 +1,70 @@
+# ==============================================================================
+# Job Configuration: Ingestão de Cotações de Moedas BCB
+# ==============================================================================
+# Autor:          Paulo Costa
+# Criado em:      2026-07-14
+# Versão:         1.0.1
+# 
+# Descrição:
+#     Job para executar ingestão diária de cotações de moedas (USD, EUR, GBP)
+#     do Banco Central do Brasil (BCB), salvando arquivos JSON separados por
+#     moeda no volume Unity Catalog landing_zone/cotacoes.
+# 
+# Notebook:       ntb_ingestao_cotacao_moedas_bcb
+# Execução:       Diariamente às 09:30 (horário de Brasília)
+# Notificações:   Email em caso de falha (após 2 tentativas de retry)
+# Retry:          2 tentativas com intervalo mínimo de 5 minutos
+# 
+# Funcionalidades:
+#     - Consulta feriados brasileiros via BrasilAPI
+#     - Identifica último dia útil (ignora sábados, domingos e feriados)
+#     - Busca cotações do BCB para o último dia útil
+#     - Salva arquivo JSON separado para cada moeda (USD, EUR, GBP)
+#     - Usa logging estruturado para rastreabilidade
+#     - Retry automático em caso de falha antes de notificar
+# 
+# Destino:
+#     Volume UC: {catalog}.default.landing_zone/cotacoes/
+#     Formato: cotacao_{MOEDA}_{timestamp}.json
+# 
+# Compute:
+#     - Usa SERVERLESS COMPUTE automaticamente (Databricks Free Edition)
+# 
+# Histórico de Alterações:
+#     2026-07-14  v1.0.0  Versão inicial do job de ingestão de cotações
+# ==============================================================================
+
+resources:
+  jobs:
+    job_cotacao_moedas_bcb:
+      name: "[${var.env}] - job_cotacao_moedas_bcb"
+      
+      # Job execution schedule - Diariamente às 09:30
+      schedule:
+        quartz_cron_expression: "0 30 9 * * ?"  # Diariamente às 09:30
+        timezone_id: "America/Sao_Paulo"
+        pause_status: UNPAUSED
+      
+      email_notifications:
+        on_failure:
+          - pcassio23@gmail.com
+      
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+      
+      tasks:
+        # ======================================================================
+        # Task: Executar Ingestão de Cotações BCB
+        # ======================================================================
+        - task_key: ingestao_cotacoes_bcb
+          notebook_task:
+            notebook_path: ${workspace.file_path}/src/notebooks/api_cotacao_moedas/ntb_ingestao_cotacao_moedas_bcb
+            source: WORKSPACE
+          
+          # Timeout de 10 minutos para ingestão das cotações
+          timeout_seconds: 600
+          
+          # Configuração de retry: 2 tentativas antes de notificar falha
+          max_retries: 2
+          min_retry_interval_millis: 300000  # 5 minutos (300000 ms)
