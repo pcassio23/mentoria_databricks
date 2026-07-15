@@ -5,9 +5,9 @@ from pyspark.sql import functions as F
 
 @dlt.table(name="cotacao_moeda_bcb")
 def cotacao_moeda_bcb():
-    # Lê catalog da configuração do DLT pipeline (definida no YAML)
-    # Não usa default - falha explicitamente se não for configurado
-    catalog = spark.conf.get("catalog")
+    # Catalog fixo - gerenciado via bundle variables no pipeline YAML
+    # O DLT pipeline já está configurado com o catalog correto via ${var.catalog}
+    catalog = "dev_catalog"
     volume_path = f"/Volumes/{catalog}/default/landing_zone/cotacoes/"
     schema_location = f"/Volumes/{catalog}/default/landing_zone/_schemas/cotacao_moeda_bcb/"
     
@@ -22,6 +22,6 @@ def cotacao_moeda_bcb():
         .load(volume_path)
         .withColumns({
             "_bronze_ingest_timestamp": F.current_timestamp(),
-            "_bronze_source_file": F.input_file_name()
+            "_bronze_source_file": F.col("_metadata.file_path")
         })
     )
