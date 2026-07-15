@@ -18,11 +18,11 @@ resources:
       # Libraries - Preparado para bronze, silver e gold (usa ** recursivo)
       libraries:
         - glob:
-            include: "bronze/**"
+            include: ${workspace.file_path}/src/pipelines/cotacao_moeda/bronze/**
         - glob:
-            include: "silver/**"
+            include: ${workspace.file_path}/src/pipelines/cotacao_moeda/silver/**
         - glob:
-            include: "gold/**"
+            include: ${workspace.file_path}/src/pipelines/cotacao_moeda/gold/**
       
       # Configuração passada para o código DLT
       configuration:

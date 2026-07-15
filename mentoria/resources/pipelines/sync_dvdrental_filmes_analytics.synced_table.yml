@@ -20,6 +20,7 @@
 #   - Primary Key: id_filme
 #   - Scheduling Policy: SNAPSHOT (full refresh on each sync)
 #   - Pipeline: Auto-created and managed by Databricks
+#   - Pipeline Name: Gerado automaticamente pelo sistema
 # ============================================================================
 
 resources:
@@ -35,6 +36,5 @@ resources:
       create_database_objects_if_missing: true
       
       new_pipeline_spec:
-        name: "[${var.env}] - sync_filmes_analytics_to_lakebase"
         storage_catalog: "${var.catalog}"
         storage_schema: "gold"
