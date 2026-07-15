@@ -3,7 +3,13 @@
 import dlt
 from pyspark.sql import functions as F
 
-@dlt.table(name="cotacao_moeda_bcb")
+@dlt.table(
+    name="cotacao_moeda_bcb",
+    table_properties={
+        "quality": "bronze",
+        "pipelines.autoOptimize.managed": "true"
+    }
+)
 def cotacao_moeda_bcb():
     # Catalog fixo - gerenciado via bundle variables no pipeline YAML
     # O DLT pipeline já está configurado com o catalog correto via ${var.catalog}
