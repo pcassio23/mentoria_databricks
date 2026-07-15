@@ -3,10 +3,9 @@ resources:
     pip_cotacao_moeda:
       name: pip_cotacao_moeda
       
-      # Schema de destino - bronze layer
-      # IMPORTANTE: 'target' define o schema onde as tabelas DLT são criadas
-      target: bronze
+      # Catalog e Schema de destino
       catalog: ${var.catalog}
+      schema: bronze  # Schema padrão para tabelas bronze
       
       # Modo de operação
       serverless: true
