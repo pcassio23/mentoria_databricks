@@ -3,19 +3,25 @@
 import dlt
 from pyspark.sql import functions as F
 
-@dlt.table(name=f"{spark.conf.get('catalog', 'dev_catalog')}.bronze.cotacao_moeda_bcb")
+@dlt.table(name="cotacao_moeda_bcb")
 def cotacao_moeda_bcb():
-    catalog = spark.conf.get("catalog", "dev_catalog")
+    # Lê catalog da configuração do DLT pipeline (definida no YAML)
+    # Não usa default - falha explicitamente se não for configurado
+    catalog = spark.conf.get("catalog")
     volume_path = f"/Volumes/{catalog}/default/landing_zone/cotacoes/"
     schema_location = f"/Volumes/{catalog}/default/landing_zone/_schemas/cotacao_moeda_bcb/"
     
     return (
         spark.readStream
-        .format("cloudFiles")  # ← Auto Loader
+        .format("cloudFiles")
         .option("cloudFiles.format", "json")
         .option("cloudFiles.schemaLocation", schema_location)
         .option("cloudFiles.schemaEvolutionMode", "addNewColumns")
+        .option("cloudFiles.inferColumnTypes", "true")
+        .option("multiLine", "true")
         .load(volume_path)
-        .withColumn("_bronze_ingest_timestamp", F.current_timestamp())
-        .withColumn("_bronze_source_file", F.input_file_name())
+        .withColumns({
+            "_bronze_ingest_timestamp": F.current_timestamp(),
+            "_bronze_source_file": F.input_file_name()
+        })
     )
