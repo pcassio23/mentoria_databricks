@@ -15,14 +15,14 @@ resources:
       # Paths
       root_path: ${workspace.file_path}/src/pipelines/cotacao_moeda
       
-      # Libraries - Preparado para bronze, silver e gold
+      # Libraries - Preparado para bronze, silver e gold (usa ** recursivo)
       libraries:
         - glob:
-            include: "bronze/*.py"
+            include: "bronze/**"
         - glob:
-            include: "silver/*.py"
+            include: "silver/**"
         - glob:
-            include: "gold/*.py"
+            include: "gold/**"
       
       # Configuração passada para o código DLT
       configuration:
