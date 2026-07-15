@@ -3,14 +3,16 @@
 # ==============================================================================
 # Autor:          Paulo Costa
 # Criado em:      2026-07-14
-# Versão:         1.0.1
+# Versão:         1.1.0
 # 
 # Descrição:
 #     Job para executar ingestão diária de cotações de moedas (USD, EUR, GBP)
 #     do Banco Central do Brasil (BCB), salvando arquivos JSON separados por
-#     moeda no volume Unity Catalog landing_zone/cotacoes.
+#     moeda no volume Unity Catalog landing_zone/cotacoes, seguido do 
+#     processamento via pipeline DLT (Bronze/Silver/Gold).
 # 
 # Notebook:       ntb_ingestao_cotacao_moedas_bcb
+# Pipeline:       pip_cotacao_moeda
 # Execução:       Diariamente às 09:30 (horário de Brasília)
 # Notificações:   Email em caso de falha (após 2 tentativas de retry)
 # Retry:          2 tentativas com intervalo mínimo de 5 minutos
@@ -20,18 +22,21 @@
 #     - Identifica último dia útil (ignora sábados, domingos e feriados)
 #     - Busca cotações do BCB para o último dia útil
 #     - Salva arquivo JSON separado para cada moeda (USD, EUR, GBP)
+#     - Processa dados via pipeline DLT com Auto Loader
 #     - Usa logging estruturado para rastreabilidade
 #     - Retry automático em caso de falha antes de notificar
 # 
 # Destino:
-#     Volume UC: {catalog}.default.landing_zone/cotacoes/
+#     Landing Zone: {catalog}.default.landing_zone/cotacoes/
 #     Formato: cotacao_{MOEDA}_{timestamp}.json
+#     Tabelas: {catalog}.bronze.cotacoes_bronze
 # 
 # Compute:
 #     - Usa SERVERLESS COMPUTE automaticamente (Databricks Free Edition)
 # 
 # Histórico de Alterações:
 #     2026-07-14  v1.0.0  Versão inicial do job de ingestão de cotações
+#     2026-07-14  v1.1.0  Adicionada task de processamento via pipeline DLT
 # ==============================================================================
 
 resources:
@@ -55,7 +60,7 @@ resources:
       
       tasks:
         # ======================================================================
-        # Task: Executar Ingestão de Cotações BCB
+        # Task 1: Executar Ingestão de Cotações BCB
         # ======================================================================
         - task_key: ingestao_cotacoes_bcb
           notebook_task:
@@ -68,3 +73,31 @@ resources:
           # Configuração de retry: 2 tentativas antes de notificar falha
           max_retries: 2
           min_retry_interval_millis: 300000  # 5 minutos (300000 ms)
+          
+          # Notificações específicas da task
+          email_notifications:
+            on_failure:
+              - pcassio23@gmail.com
+        
+        # ======================================================================
+        # Task 2: Processar Dados via Pipeline DLT
+        # ======================================================================
+        - task_key: processar_pipeline_cotacoes
+          depends_on:
+            - task_key: ingestao_cotacoes_bcb
+          
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.pip_cotacao_moeda.id}
+            full_refresh: false  # Incremental (Auto Loader processa apenas novos arquivos)
+          
+          # Timeout de 15 minutos para processamento do pipeline
+          timeout_seconds: 900
+          
+          # Configuração de retry: 2 tentativas antes de notificar falha
+          max_retries: 2
+          min_retry_interval_millis: 300000  # 5 minutos (300000 ms)
+          
+          # Notificações específicas da task
+          email_notifications:
+            on_failure:
+              - pcassio23@gmail.com

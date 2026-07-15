@@ -1,0 +1,32 @@
+resources:
+  pipelines:
+    pip_cotacao_moeda:
+      name: pip_cotacao_moeda
+      
+      # Ambiente e target
+      target: ${bundle.environment}
+      catalog: ${var.catalog}
+      
+      # Modo de operação
+      serverless: true
+      channel: CURRENT   # Runtime estável e testado
+      continuous: false  # Modo triggered (batch), não streaming contínuo
+      
+      # Paths
+      root_path: ${workspace.file_path}/src/pipelines/cotacao_moeda
+      
+      # Libraries - Preparado para bronze, silver e gold
+      libraries:
+        - glob:
+            include: "bronze/*.py"
+        - glob:
+            include: "silver/*.py"
+        - glob:
+            include: "gold/*.py"
+      
+      # Configuração passada para o código DLT
+      configuration:
+        catalog: ${var.catalog}
+        bronze_schema: bronze
+        silver_schema: silver
+        gold_schema: gold
