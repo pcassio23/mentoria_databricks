@@ -19,8 +19,8 @@ resources:
       libraries:
         - glob:
             include: ${workspace.file_path}/src/pipelines/cotacao_moeda/bronze/**
-        # - glob:
-        #     include: ${workspace.file_path}/src/pipelines/cotacao_moeda/silver/**
+        - glob:
+            include: ${workspace.file_path}/src/pipelines/cotacao_moeda/silver/**
         # - glob:
         #     include: ${workspace.file_path}/src/pipelines/cotacao_moeda/gold/**
       
