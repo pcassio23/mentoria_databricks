@@ -3,9 +3,9 @@ resources:
     pip_cotacao_moeda:
       name: pip_cotacao_moeda
       
-      # Catalog e Schema de destino
+      # Catalog e Schema de destino (igual ao padrão dvdrental_film)
       catalog: ${var.catalog}
-      schema: bronze  # Schema padrão para tabelas bronze
+      schema: ${var.bronze_schema}  # Usa variável para consistência
       
       # Modo de operação
       serverless: true
@@ -27,6 +27,6 @@ resources:
       # Configuração passada para o código DLT
       configuration:
         catalog: ${var.catalog}
-        bronze_schema: bronze
-        silver_schema: silver
-        gold_schema: gold
+        bronze_schema: ${var.bronze_schema}
+        silver_schema: ${var.silver_schema}
+        gold_schema: ${var.gold_schema}
