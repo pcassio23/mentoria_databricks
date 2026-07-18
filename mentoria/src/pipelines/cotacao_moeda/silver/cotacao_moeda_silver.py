@@ -15,6 +15,7 @@
 #            |                       | - Schema explícito com comentários UC
 #            |                       | - Conversão para streaming table
 #            |                       | - Timestamp completo (dataHoraCotacao)
+#            |                       | - Coluna de auditoria (processed_at)
 # ============================================================================
 
 import dlt
@@ -33,7 +34,8 @@ from pyspark.sql.types import DecimalType, DateType, TimestampType
         dataHoraCotacao TIMESTAMP COMMENT 'Data e hora exata da cotação no formato timestamp',
         tipoBoletim STRING COMMENT 'Tipo do boletim do Banco Central (ex: Abertura, Intermediário, Fechamento)',
         cotacaoCompra DECIMAL(18,4) COMMENT 'Valor de compra da moeda em reais (BRL)',
-        cotacaoVenda DECIMAL(18,4) COMMENT 'Valor de venda da moeda em reais (BRL)'
+        cotacaoVenda DECIMAL(18,4) COMMENT 'Valor de venda da moeda em reais (BRL)',
+        processed_at TIMESTAMP COMMENT 'Timestamp de quando o registro foi processado na camada silver'
     """
 )
 @dlt.expect_or_drop("valid_cotacao", "cotacaoCompra > 0 OR cotacaoVenda > 0")
@@ -47,6 +49,7 @@ def cotacao_moeda_bcb_silver():
     - tipoBoletim: Tipo do boletim BCB
     - cotacaoCompra: Valor de compra
     - cotacaoVenda: Valor de venda
+    - processed_at: Timestamp de processamento na silver
     """
     
     return (
@@ -65,6 +68,9 @@ def cotacao_moeda_bcb_silver():
             # Dados da cotação
             F.col("cotacao.tipoBoletim"),
             F.col("cotacao.cotacaoCompra").cast(DecimalType(18, 4)).alias("cotacaoCompra"),
-            F.col("cotacao.cotacaoVenda").cast(DecimalType(18, 4)).alias("cotacaoVenda")
+            F.col("cotacao.cotacaoVenda").cast(DecimalType(18, 4)).alias("cotacaoVenda"),
+            
+            # Coluna de auditoria
+            F.current_timestamp().alias("processed_at")
         )
     )
