@@ -32,12 +32,12 @@ from pyspark.sql import functions as F
     "changedatafeed.enabled": "true"
     },
     schema="""
-        moeda STRING COMMENT 'Nome da moeda estrangeira (ex: Dólar Americano, Euro)',
         data_cotacao DATE COMMENT 'Data da cotação (apenas data, sem hora)',
+        moeda STRING COMMENT 'Nome da moeda estrangeira (ex: Dólar Americano, Euro)',
         cotacao_abertura DECIMAL(18,4) COMMENT 'Valor de abertura da moeda em reais (BRL)',
         cotacao_fechamento DECIMAL(18,4) COMMENT 'Valor de fechamento da moeda em reais (BRL)',
-        variacao_percentual DECIMAL(18,2) COMMENT 'Variação percentual entre abertura e fechamento',
-        processed_at TIMESTAMP COMMENT 'Timestamp de quando o registro foi processado na camada gold'
+        variacao_percentual DECIMAL(26,2) COMMENT 'Variação percentual entre abertura e fechamento',
+        processed_at TIMESTAMP NOT NULL COMMENT 'Timestamp de quando o registro foi processado na camada gold'
     """
 )
 @dlt.expect_or_drop("valid_cotacao", "cotacaoVenda > 0")
