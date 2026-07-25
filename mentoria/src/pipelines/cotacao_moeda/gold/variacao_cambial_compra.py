@@ -56,7 +56,7 @@ def variacao_cambial_compra():
     """
 
     return (
-        dlt.read_stream("silver.cotacao_bcb")
+        dlt.read_stream("silver.cotacao_moeda_bcb")
             .filter(F.col("tipoBoletim").isin("Abertura", "Fechamento"))
             .groupBy(
                 F.to_date("dataHoraCotacao").alias("data_cotacao"),
