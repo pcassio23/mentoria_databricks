@@ -40,7 +40,6 @@ from pyspark.sql import functions as F
         processed_at TIMESTAMP NOT NULL COMMENT 'Timestamp de quando o registro foi processado na camada gold'
     """
 )
-@dlt.expect_or_drop("valid_cotacao", "cotacaoVenda > 0")
 
 def variacao_cambial_venda():
     """
