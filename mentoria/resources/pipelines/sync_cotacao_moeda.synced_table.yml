@@ -18,7 +18,7 @@
 #
 # Configuration:
 #   - Primary Key: data_cotacao, moeda
-#   - Scheduling Policy: CONTINUOUS (full refresh on each sync)
+#   - Scheduling Policy: TRIGGERED (full refresh on each sync)
 #   - Pipeline: Auto-created and managed by Databricks
 #   - Pipeline Name: Gerado automaticamente pelo sistema
 # ============================================================================
@@ -32,7 +32,7 @@ resources:
       primary_key_columns:
         - "data_cotacao"
         - "moeda"
-      scheduling_policy: "CONTINUOUS"
+      scheduling_policy: "TRIGGERED"
       postgres_database: "databricks_postgres"
       create_database_objects_if_missing: true
       
@@ -47,7 +47,7 @@ resources:
         primary_key_columns:
           - "data_cotacao"
           - "moeda"
-        scheduling_policy: "CONTINUOUS"
+        scheduling_policy: "TRIGGERED"
         postgres_database: "databricks_postgres"
         create_database_objects_if_missing: true
         
