@@ -1,0 +1,57 @@
+# ============================================================================
+# Synced Table: Filmes Analytics to Lakebase
+# ============================================================================
+# 
+# Purpose:
+#   Syncs analytical film data from Unity Catalog to Lakebase Postgres
+#   Enables operational analytics and real-time queries on PostgreSQL
+#
+# Source:
+#   Unity Catalog Table: ${var.catalog}.gold.variacao_cambial_compra
+#   Layer: Gold (business-ready analytics)
+#
+# Destination:
+#   Lakebase Catalog: lakebase_catalog.bcb.variacao_cambial_compra
+#   Physical Table: databricks_postgres.bcb.variacao_cambial_compra
+#
+# Type: postgres_synced_table (Lakebase Autoscaling)
+#
+# Configuration:
+#   - Primary Key: data_cotacao, moeda
+#   - Scheduling Policy: CONTINUOUS (full refresh on each sync)
+#   - Pipeline: Auto-created and managed by Databricks
+#   - Pipeline Name: Gerado automaticamente pelo sistema
+# ============================================================================
+
+resources:
+  postgres_synced_tables:
+    sync_variacao_cambial_compra:
+      synced_table_id: "lakebase_catalog.bcb.variacao_cambial_compra"
+      branch: "${var.lakebase_branch}"
+      source_table_full_name: "${var.catalog}.gold.variacao_cambial_compra"
+      primary_key_columns:
+        - "data_cotacao"
+        - "moeda"
+      scheduling_policy: "CONTINUOUS"
+      postgres_database: "databricks_postgres"
+      create_database_objects_if_missing: true
+      
+      new_pipeline_spec:
+        storage_catalog: "${var.catalog}"
+        storage_schema: "gold"
+
+    sync_variacao_cambial_venda:
+        synced_table_id: "lakebase_catalog.bcb.variacao_cambial_venda"
+        branch: "${var.lakebase_branch}"
+
+        primary_key_columns:
+          - "data_cotacao"
+          - "moeda"
+        scheduling_policy: "CONTINUOUS"
+        postgres_database: "databricks_postgres"
+        create_database_objects_if_missing: true
+        
+        new_pipeline_spec:
+          storage_catalog: "${var.catalog}"
+          storage_schema: "gold"      
+        source_table_full_name: "${var.catalog}.gold.variacao_cambial_venda"
