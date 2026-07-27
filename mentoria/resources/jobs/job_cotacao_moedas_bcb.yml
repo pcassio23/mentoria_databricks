@@ -106,46 +106,46 @@ resources:
         # ======================================================================
         # Task 3: Sincronizar Tabela de Variação Cambial Compra
         # ======================================================================
-        - task_key: sincronizar_tabela_variacao_cambial_compra
-          depends_on:
-            - task_key: processar_pipeline_cotacoes
-          
-          pipeline_task:
-            pipeline_id: ${resources.pipelines.sync_variacao_cambial_compra.id}
-            full_refresh: false  # Incremental (Auto Loader processa apenas novos arquivos)
-       
-          
-          # Timeout de 15 minutos para processamento do pipeline
-          timeout_seconds: 900
-          
-          # Configuração de retry: 2 tentativas antes de notificar falha
-          max_retries: 2
-          min_retry_interval_millis: 300000  # 5 minutos (300000 ms)
-          
-          # Notificações específicas da task
-          email_notifications:
-            on_failure:
-              - pcassio23@gmail.com
+        # - task_key: sincronizar_tabela_variacao_cambial_compra
+        #   depends_on:
+        #     - task_key: processar_pipeline_cotacoes
+        #   
+        #   pipeline_task:
+        #     pipeline_id: ${resources.pipelines.sync_variacao_cambial_compra.id}
+        #     full_refresh: false  # Incremental (Auto Loader processa apenas novos arquivos)
+        #  
+        #   
+        #   # Timeout de 15 minutos para processamento do pipeline
+        #   timeout_seconds: 900
+        #   
+        #   # Configuração de retry: 2 tentativas antes de notificar falha
+        #   max_retries: 2
+        #   min_retry_interval_millis: 300000  # 5 minutos (300000 ms)
+        #   
+        #   # Notificações específicas da task
+        #   email_notifications:
+        #     on_failure:
+        #       - pcassio23@gmail.com
 
         # ======================================================================
         # Task 4: Sincronizar Tabela de Variação Cambial Venda
         # ======================================================================
-        - task_key: sincronizar_tabela_variacao_cambial_venda
-          depends_on:
-            - task_key: sincronizar_tabela_variacao_cambial_compra
-          
-          pipeline_task:
-            pipeline_id: ${resources.pipelines.sync_variacao_cambial_venda.id}
-            full_refresh: false  # Incremental (Auto Loader processa apenas novos arquivos)
-          
-          # Timeout de 15 minutos para processamento do pipeline
-          timeout_seconds: 900
-          
-          # Configuração de retry: 2 tentativas antes de notificar falha
-          max_retries: 2
-          min_retry_interval_millis: 300000  # 5 minutos (300000 ms)
-          
-          # Notificações específicas da task
-          email_notifications:
-            on_failure:
-              - pcassio23@gmail.com
+        # - task_key: sincronizar_tabela_variacao_cambial_venda
+        #   depends_on:
+        #     - task_key: sincronizar_tabela_variacao_cambial_compra
+        #   
+        #   pipeline_task:
+        #     pipeline_id: ${resources.pipelines.sync_variacao_cambial_venda.id}
+        #     full_refresh: false  # Incremental (Auto Loader processa apenas novos arquivos)
+        #   
+        #   # Timeout de 15 minutos para processamento do pipeline
+        #   timeout_seconds: 900
+        #   
+        #   # Configuração de retry: 2 tentativas antes de notificar falha
+        #   max_retries: 2
+        #   min_retry_interval_millis: 300000  # 5 minutos (300000 ms)
+        #   
+        #   # Notificações específicas da task
+        #   email_notifications:
+        #     on_failure:
+        #       - pcassio23@gmail.com
