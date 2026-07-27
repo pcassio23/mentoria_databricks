@@ -111,8 +111,9 @@ resources:
             - task_key: processar_pipeline_cotacoes
           
           pipeline_task:
-            pipeline_id: ${resources.postgres_synced_tables.sync_variacao_cambial_compra.pipeline_id}
+            pipeline_id: ${resources.pipelines.sync_variacao_cambial_compra.id}
             full_refresh: false  # Incremental (Auto Loader processa apenas novos arquivos)
+       
           
           # Timeout de 15 minutos para processamento do pipeline
           timeout_seconds: 900
@@ -134,7 +135,7 @@ resources:
             - task_key: sincronizar_tabela_variacao_cambial_compra
           
           pipeline_task:
-            pipeline_id: ${resources.postgres_synced_tables.sync_variacao_cambial_venda.pipeline_id}
+            pipeline_id: ${resources.pipelines.sync_variacao_cambial_venda.id}
             full_refresh: false  # Incremental (Auto Loader processa apenas novos arquivos)
           
           # Timeout de 15 minutos para processamento do pipeline
