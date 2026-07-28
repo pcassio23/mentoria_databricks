@@ -111,7 +111,7 @@ resources:
             - task_key: processar_pipeline_cotacoes
           
           pipeline_task:
-            pipeline_id: ${resources.postgres_synced_tables.sync_variacao_cambial_compra.data_synchronization_status.pipeline_id}
+            pipeline_id: ${resources.postgres_synced_tables.sync_variacao_cambial_compra.id}
             #full_refresh: false  # Incremental (Auto Loader processa apenas novos arquivos)
          
           
